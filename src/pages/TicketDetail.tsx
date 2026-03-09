@@ -1,24 +1,18 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
 import { useTickets } from "@/contexts/TicketContext";
 import { statusLabels, statusColors, priorityColors, priorityLabels, categoryLabels, workflowSteps, responsabiliteLabels, SEUIL_DELEGATION } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { QuoteComparison } from "@/components/QuoteComparison";
 import { MessageThread } from "@/components/MessageThread";
 import { AvailabilityCalendar } from "@/components/AvailabilityCalendar";
 import {
   ArrowLeft, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
-  AlertTriangle, Send, Brain, Bot, Play, XCircle, FileText, Archive
+  AlertTriangle, Send, Brain, Bot, Play, XCircle, FileText, Archive, Shield
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function TicketDetail() {
   const { id } = useParams();
@@ -26,25 +20,15 @@ export default function TicketDetail() {
   const ctx = useTickets();
   const ticket = ctx.getTicket(id || "");
 
-  const [newQuoteArtisan, setNewQuoteArtisan] = useState("");
-  const [newQuoteMontant, setNewQuoteMontant] = useState("");
-  const [newQuoteDelai, setNewQuoteDelai] = useState("");
-  const [newQuoteDesc, setNewQuoteDesc] = useState("");
-
   if (!ticket) return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Ticket introuvable</p></div>;
 
-  const currentStepIndex = workflowSteps.findIndex(s => s.key === ticket.status);
+  const displaySteps = workflowSteps.filter(s => s.key !== "qualifie");
+  const currentStepIndex = displaySteps.findIndex(s => s.key === ticket.status);
   const selectedQuote = ticket.quotes.find(q => q.id === ticket.selectedQuoteId);
   const artisan = ticket.artisanId ? ctx.getArtisan(ticket.artisanId) : null;
 
-  const handleAddQuote = () => {
-    if (!newQuoteArtisan || !newQuoteMontant) return;
-    ctx.addQuote(ticket.id, newQuoteArtisan, Number(newQuoteMontant), newQuoteDelai, newQuoteDesc);
-    setNewQuoteArtisan(""); setNewQuoteMontant(""); setNewQuoteDelai(""); setNewQuoteDesc("");
-  };
-
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" /></Button>
@@ -63,11 +47,11 @@ export default function TicketDetail() {
         </Button>
       </div>
 
-      {/* Workflow stepper */}
+      {/* Workflow stepper — without Qualification */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
           <div className="flex items-center justify-between overflow-x-auto">
-            {workflowSteps.map((step, i) => {
+            {displaySteps.map((step, i) => {
               const isCompleted = i < currentStepIndex;
               const isCurrent = i === currentStepIndex;
               return (
@@ -78,7 +62,7 @@ export default function TicketDetail() {
                     </div>
                     <span className={`text-[10px] mt-1 whitespace-nowrap ${isCurrent ? "font-semibold text-primary" : "text-muted-foreground"}`}>{step.label}</span>
                   </div>
-                  {i < workflowSteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 ${isCompleted ? "bg-success" : "bg-border"}`} />}
+                  {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 ${isCompleted ? "bg-success" : "bg-border"}`} />}
                 </div>
               );
             })}
@@ -98,8 +82,6 @@ export default function TicketDetail() {
             </CardContent>
           </Card>
 
-          {/* STAGE-SPECIFIC SECTIONS */}
-
           {/* Signale -> Qualification action */}
           {ticket.status === "signale" && (
             <Card className="border-0 shadow-sm border-l-4 border-l-primary">
@@ -112,7 +94,7 @@ export default function TicketDetail() {
             </Card>
           )}
 
-          {/* Recherche artisan -> Artisan management */}
+          {/* Recherche artisan */}
           {ticket.status === "recherche_artisan" && (
             <>
               <Card className="border-0 shadow-sm border-l-4 border-l-accent">
@@ -153,29 +135,7 @@ export default function TicketDetail() {
                 </Tabs>
               )}
 
-              {/* Add quote */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-2"><CardTitle className="text-sm">Ajouter un devis</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Artisan</Label>
-                      <Select value={newQuoteArtisan} onValueChange={setNewQuoteArtisan}>
-                        <SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
-                        <SelectContent>{ctx.artisans.map(a => <SelectItem key={a.id} value={a.id}>{a.nom}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1"><Label className="text-xs">Montant (€)</Label><Input type="number" value={newQuoteMontant} onChange={e => setNewQuoteMontant(e.target.value)} /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1"><Label className="text-xs">Délai</Label><Input value={newQuoteDelai} onChange={e => setNewQuoteDelai(e.target.value)} placeholder="Ex: 3 jours" /></div>
-                    <div className="space-y-1"><Label className="text-xs">Description</Label><Input value={newQuoteDesc} onChange={e => setNewQuoteDesc(e.target.value)} placeholder="Détail prestation" /></div>
-                  </div>
-                  <Button size="sm" onClick={handleAddQuote} disabled={!newQuoteArtisan || !newQuoteMontant}>Ajouter le devis</Button>
-                </CardContent>
-              </Card>
-
-              {/* Quote comparison */}
+              {/* Quote comparison — no add form */}
               <QuoteComparison quotes={ticket.quotes} onSelect={qid => ctx.selectQuoteAndAdvance(ticket.id, qid)} />
             </>
           )}
@@ -198,21 +158,39 @@ export default function TicketDetail() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <Badge className="bg-warning/15 text-warning border-0">Au-dessus du seuil — Validation propriétaire requise</Badge>
-                    <Button onClick={() => ctx.validateQuote(ticket.id)} variant="outline" className="w-full">
-                      Envoyer la demande au propriétaire
-                    </Button>
-                    <Separator />
-                    <p className="text-xs text-muted-foreground text-center">Simulation de la réponse du propriétaire :</p>
-                    <div className="flex gap-2">
-                      <Button onClick={() => ctx.ownerRespond(ticket.id, true)} className="flex-1 bg-success hover:bg-success/90" size="sm">
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approuver
+                    {ticket.validationStatus !== "en_attente" ? (
+                      <Button onClick={() => ctx.validateQuote(ticket.id)} variant="outline" className="w-full">
+                        <Send className="h-4 w-4 mr-2" /> Envoyer la demande au propriétaire
                       </Button>
-                      <Button onClick={() => ctx.ownerRespond(ticket.id, false)} variant="destructive" className="flex-1" size="sm">
-                        <XCircle className="h-3.5 w-3.5 mr-1" /> Refuser
-                      </Button>
-                    </div>
+                    ) : (
+                      <>
+                        {/* Show the email sent */}
+                        <Card className="border border-border bg-muted/50">
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Mail className="h-3.5 w-3.5" />
+                              <span>Email envoyé à <strong className="text-foreground">{ticket.bien.proprietaire}</strong> ({ticket.bien.emailProprio})</span>
+                            </div>
+                            <Separator />
+                            <div className="text-sm space-y-1">
+                              <p className="font-medium text-xs text-muted-foreground">Objet : Demande de validation de devis — {ticket.reference}</p>
+                              <p>Bonjour {ticket.bien.proprietaire},</p>
+                              <p>Suite à un signalement au <strong>{ticket.bien.adresse}</strong> ({ticket.bien.lot}), nous avons reçu un devis de <strong>{selectedQuote.artisanNom}</strong> pour un montant de <strong>{selectedQuote.montant} €</strong>.</p>
+                              <p className="text-muted-foreground text-xs">Prestation : {selectedQuote.description}</p>
+                              <p className="text-muted-foreground text-xs">Délai estimé : {selectedQuote.delai}</p>
+                              <p>Merci de nous confirmer votre accord pour engager ces travaux.</p>
+                              <p className="text-muted-foreground text-xs italic">— L'équipe de gestion</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5 animate-spin" />
+                          <span>En attente de la réponse du propriétaire…</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -332,8 +310,35 @@ export default function TicketDetail() {
           )}
         </div>
 
-        {/* Right sidebar */}
+        {/* Right sidebar — fixed info panel */}
         <div className="space-y-4">
+          {/* Qualification info */}
+          {ticket.responsabilite && (
+            <Card className="border-0 shadow-sm bg-primary/5">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Shield className="h-4 w-4" /> Qualification</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Catégorie</span>
+                  <Badge variant="secondary" className="text-[10px]">{categoryLabels[ticket.categorie]}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Responsabilité</span>
+                  <Badge variant="outline" className="border-0 bg-primary/10 text-primary text-[10px]">{responsabiliteLabels[ticket.responsabilite]}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Orientation</span>
+                  <span className="text-xs">Réparation / Entretien</span>
+                </div>
+                {ticket.urgence && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Urgence</span>
+                    <Badge className="bg-destructive text-destructive-foreground text-[10px]">Oui</Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><User className="h-4 w-4" /> Locataire</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
