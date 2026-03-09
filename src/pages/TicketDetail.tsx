@@ -160,13 +160,13 @@ export default function TicketDetail() {
                 ) : (
                   <div className="space-y-3">
                     <Badge className="bg-warning/15 text-warning border-0">Au-dessus du seuil — Validation propriétaire requise</Badge>
-                    {ticket.validationStatus !== "en_attente" ? (
+                    {!ticket.validationStatus ? (
                       <Button onClick={() => ctx.validateQuote(ticket.id)} variant="outline" className="w-full">
                         <Send className="h-4 w-4 mr-2" /> Envoyer la demande au propriétaire
                       </Button>
                     ) : (
-                      <>
-                        {/* Show the email sent */}
+                      <div className="space-y-3">
+                        {/* Email envoyé au propriétaire */}
                         <Card className="border border-border bg-muted/50">
                           <CardContent className="p-3 space-y-2">
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -177,7 +177,9 @@ export default function TicketDetail() {
                             <div className="text-sm space-y-1">
                               <p className="font-medium text-xs text-muted-foreground">Objet : Demande de validation de devis — {ticket.reference}</p>
                               <p>Bonjour {ticket.bien.proprietaire},</p>
-                              <p>Suite à un signalement au <strong>{ticket.bien.adresse}</strong> ({ticket.bien.lot}), nous avons reçu un devis de <strong>{selectedQuote.artisanNom}</strong> pour un montant de <strong>{selectedQuote.montant} €</strong>.</p>
+                              <p>Nous vous contactons suite au signalement de <strong>{ticket.locataire.nom}</strong> concernant un problème de <strong>{ticket.categorie}</strong> au <strong>{ticket.bien.adresse}</strong> ({ticket.bien.lot}).</p>
+                              <p className="text-muted-foreground text-xs">Problème signalé : {ticket.description}</p>
+                              <p>Nous avons reçu un devis de <strong>{selectedQuote.artisanNom}</strong> pour un montant de <strong>{selectedQuote.montant} €</strong>.</p>
                               <p className="text-muted-foreground text-xs">Prestation : {selectedQuote.description}</p>
                               <p className="text-muted-foreground text-xs">Délai estimé : {selectedQuote.delai}</p>
                               <p>Merci de nous confirmer votre accord pour engager ces travaux.</p>
@@ -185,11 +187,48 @@ export default function TicketDetail() {
                             </div>
                           </CardContent>
                         </Card>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="h-3.5 w-3.5 animate-spin" />
-                          <span>En attente de la réponse du propriétaire…</span>
-                        </div>
-                      </>
+
+                        {/* Réponse du propriétaire */}
+                        {ticket.validationStatus === "en_attente" && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5 animate-spin" />
+                            <span>En attente de la réponse du propriétaire…</span>
+                          </div>
+                        )}
+                        {ticket.validationStatus === "approuve" && (
+                          <Card className="border border-success/30 bg-success/5">
+                            <CardContent className="p-3 space-y-2">
+                              <div className="flex items-center gap-2 text-xs text-success">
+                                <Mail className="h-3.5 w-3.5" />
+                                <span>Réponse de <strong>{ticket.bien.proprietaire}</strong></span>
+                              </div>
+                              <Separator />
+                              <div className="text-sm space-y-1">
+                                <p>Bonjour,</p>
+                                <p>Je confirme mon accord pour le devis de <strong>{selectedQuote.montant} €</strong> de <strong>{selectedQuote.artisanNom}</strong> concernant le problème de {ticket.categorie} au {ticket.bien.adresse}.</p>
+                                <p>Merci de procéder aux travaux dans les meilleurs délais.</p>
+                                <p className="text-muted-foreground text-xs italic">— {ticket.bien.proprietaire}</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                        {ticket.validationStatus === "refuse" && (
+                          <Card className="border border-destructive/30 bg-destructive/5">
+                            <CardContent className="p-3 space-y-2">
+                              <div className="flex items-center gap-2 text-xs text-destructive">
+                                <Mail className="h-3.5 w-3.5" />
+                                <span>Réponse de <strong>{ticket.bien.proprietaire}</strong></span>
+                              </div>
+                              <Separator />
+                              <div className="text-sm space-y-1">
+                                <p>Bonjour,</p>
+                                <p>Je ne souhaite pas donner suite à ce devis. Merci de me proposer une alternative.</p>
+                                <p className="text-muted-foreground text-xs italic">— {ticket.bien.proprietaire}</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

@@ -205,13 +205,18 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       // Simulate owner approval after 3 seconds
       setTimeout(() => {
         const artisanObj = artisans.find(a => a.id === ticket.artisanId);
+        // Show approval response first
+        update(ticketId, { validationStatus: "approuve" });
         simulateAI(ticketId, [
           { msg: `✅ ${ticket.bien.proprietaire} a approuvé le devis`, type: "validation" },
           { msg: `Message envoyé à ${artisanObj?.nom} : "Votre intervention a été validée pour le logement de ${ticket.locataire.nom}. Merci d'indiquer vos disponibilités."`, type: "message_sent" },
           { msg: `Message envoyé à ${ticket.locataire.nom} : "Une intervention est prévue chez vous. Merci d'indiquer vos créneaux disponibles."`, type: "message_sent" },
           { msg: "Passage à l'étape Planification", type: "action" },
         ], () => {
-          update(ticketId, { status: "planifie", validationStatus: "approuve" });
+          // Delay transition so user sees the owner's response
+          setTimeout(() => {
+            update(ticketId, { status: "planifie" });
+          }, 2000);
         });
       }, 3000);
     }
