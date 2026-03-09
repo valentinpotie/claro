@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { Ticket, Artisan, AIJournalEntry, Quote, TimeSlot, TicketMessage, SEUIL_DELEGATION, Responsabilite, TicketCategory, TicketPriority } from "@/data/types";
+import { Ticket, Artisan, AIJournalEntry, Quote, TimeSlot, TicketMessage, SEUIL_DELEGATION, Responsabilite, TicketCategory, TicketPriority, categoryLabels } from "@/data/types";
 import { initialTickets, initialArtisans } from "@/data/mockData";
 
 interface TicketContextType {
