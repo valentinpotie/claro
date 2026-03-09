@@ -1,30 +1,12 @@
 import {
-  LayoutDashboard,
-  ClipboardList,
-  AlertTriangle,
-  Wrench,
-  UserCheck,
-  Calendar,
-  HardHat,
-  Receipt,
-  Shield,
-  BookOpen,
-  PlusCircle,
+  LayoutDashboard, ClipboardList, AlertTriangle, Wrench, UserCheck,
+  Calendar, HardHat, Receipt, Shield, BookOpen, PlusCircle, Archive,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
-  useSidebar,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 
 const mainItems = [
@@ -40,7 +22,7 @@ const workflowItems = [
   { title: "Planification", url: "/planification", icon: Calendar },
   { title: "Interventions", url: "/interventions", icon: HardHat },
   { title: "Facturation", url: "/facturation", icon: Receipt },
-  { title: "Assurance", url: "/assurance", icon: Shield },
+  { title: "Clôture", url: "/cloture", icon: Archive },
 ];
 
 const guideItems = [
@@ -71,7 +53,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        {!collapsed && (
+        {!collapsed ? (
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
               <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
@@ -81,37 +63,30 @@ export function AppSidebar() {
               <p className="text-[10px] text-sidebar-muted">Gestion locative</p>
             </div>
           </div>
-        )}
-        {collapsed && (
+        ) : (
           <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center mx-auto">
             <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
           </div>
         )}
       </SidebarHeader>
-
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Principal</SidebarGroupLabel>
           <SidebarGroupContent>{renderItems(mainItems)}</SidebarGroupContent>
         </SidebarGroup>
-
         <SidebarGroup>
           <SidebarGroupLabel>Workflow</SidebarGroupLabel>
           <SidebarGroupContent>{renderItems(workflowItems)}</SidebarGroupContent>
         </SidebarGroup>
-
         <SidebarGroup>
           <SidebarGroupLabel>Outils</SidebarGroupLabel>
           <SidebarGroupContent>{renderItems(guideItems)}</SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
       <SidebarFooter className="p-4">
         {!collapsed && (
           <div className="text-[10px] text-sidebar-muted">
-            Agence Immobilière Durand
-            <br />
-            Gestionnaire: Sophie Martin
+            Agence Immobilière Durand<br />Gestionnaire: Sophie Martin
           </div>
         )}
       </SidebarFooter>
