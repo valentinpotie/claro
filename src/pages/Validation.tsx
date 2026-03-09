@@ -1,80 +1,42 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Clock, Send, Euro } from "lucide-react";
-import { mockTickets, statusLabels } from "@/data/mockData";
 import { useNavigate } from "react-router-dom";
+import { useTickets } from "@/contexts/TicketContext";
+import { priorityLabels, priorityColors, SEUIL_DELEGATION } from "@/data/types";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, XCircle, Euro, ArrowRight } from "lucide-react";
 
 export default function Validation() {
+  const { tickets, validateQuote, ownerRespond } = useTickets();
   const navigate = useNavigate();
-  const validationTickets = mockTickets.filter((t) => t.status === "validation_proprio");
-
+  const filtered = tickets.filter(t => t.status === "validation_proprio");
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-        <p className="text-sm text-primary font-medium">
-          ✅ Objectif : Montrer la boucle de validation propriétaire (point de friction majeur).
-          <span className="text-muted-foreground font-normal"> → "Combien de temps mettez-vous à obtenir un accord du propriétaire ? Quels sont les délais habituels ?"</span>
-        </p>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-bold">Validation propriétaire</h1>
-        <p className="text-sm text-muted-foreground">{validationTickets.length} devis en attente de validation</p>
-      </div>
-
-      {validationTickets.map((ticket) => (
-        <Card key={ticket.id} className="border-0 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs text-muted-foreground">{ticket.reference}</span>
-                  <Badge variant="outline" className="status-badge bg-warning/15 text-warning border-0">En attente</Badge>
-                </div>
-                <h3 className="font-semibold">{ticket.titre}</h3>
-                <p className="text-sm text-muted-foreground">{ticket.bien.adresse}</p>
-              </div>
-              {ticket.artisan?.devis && (
-                <div className="text-right">
-                  <p className="text-2xl font-bold">{ticket.artisan.devis} €</p>
-                  <p className="text-xs text-muted-foreground">Devis {ticket.artisan.nom}</p>
-                </div>
-              )}
+      <div><h1 className="text-xl font-bold">Validation propriétaire</h1><p className="text-sm text-muted-foreground">Seuil de délégation : {SEUIL_DELEGATION} €</p></div>
+      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun devis en attente</CardContent></Card> :
+      filtered.map(t => {
+        const quote = t.quotes.find(q => q.id === t.selectedQuoteId);
+        const dansLeSeuil = quote && quote.montant <= SEUIL_DELEGATION;
+        return (
+          <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4 flex items-start justify-between">
+            <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
+              <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
+              <p className="font-medium text-sm">{t.titre}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t.bien.proprietaire}</p>
+              {quote && <div className="mt-2 p-2 bg-muted rounded text-xs"><span className="font-medium">{quote.artisanNom}</span> — <Euro className="h-3 w-3 inline" /> {quote.montant} € — {quote.delai}<p className="text-muted-foreground mt-0.5">{quote.description}</p></div>}
+              {dansLeSeuil && <Badge className="mt-2 bg-success/15 text-success border-0 text-[10px]">Dans le seuil — Validation agence</Badge>}
+              {!dansLeSeuil && <Badge className="mt-2 bg-warning/15 text-warning border-0 text-[10px]">Au-dessus du seuil — Propriétaire requis</Badge>}
             </div>
-
-            <div className="bg-muted rounded-lg p-4 mb-4 text-sm">
-              <p className="font-medium mb-1">Propriétaire : {ticket.bien.proprietaire}</p>
-              <p className="text-muted-foreground">Tél : {ticket.bien.telephoneProprio}</p>
-              <p className="text-muted-foreground mt-2 italic">Devis envoyé le {new Date(ticket.dateMaj).toLocaleDateString("fr-FR")} · Relance automatique prévue dans 48h</p>
+            <div className="flex flex-col gap-2 shrink-0 ml-4">
+              {dansLeSeuil ? <Button onClick={() => validateQuote(t.id)} size="sm"><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Valider <ArrowRight className="h-3 w-3 ml-1" /></Button> : <>
+                <Button onClick={() => validateQuote(t.id)} size="sm" variant="outline">Envoyer au proprio</Button>
+                <Button onClick={() => ownerRespond(t.id, true)} size="sm" className="bg-success hover:bg-success/90"><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approuver</Button>
+                <Button onClick={() => ownerRespond(t.id, false)} size="sm" variant="destructive"><XCircle className="h-3.5 w-3.5 mr-1" /> Refuser</Button>
+              </>}
             </div>
-
-            <div className="flex gap-2">
-              <Button className="bg-success hover:bg-success/90" size="sm">
-                <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Valider (accord verbal)
-              </Button>
-              <Button variant="outline" size="sm">
-                <Send className="h-3.5 w-3.5 mr-2" /> Relancer
-              </Button>
-              <Button variant="outline" size="sm" className="text-destructive">
-                <XCircle className="h-3.5 w-3.5 mr-2" /> Refusé
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/tickets/${ticket.id}`)}>
-                Voir le dossier
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      {validationTickets.length === 0 && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-8 text-center text-muted-foreground">
-            <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-success" />
-            <p>Aucun devis en attente de validation</p>
-          </CardContent>
-        </Card>
-      )}
+          </CardContent></Card>
+        );
+      })}
     </div>
   );
 }

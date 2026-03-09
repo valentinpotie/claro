@@ -1,73 +1,52 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Calendar, Clock, MapPin, Phone, Wrench, CheckCircle2 } from "lucide-react";
-import { mockTickets, priorityLabels, priorityColors } from "@/data/mockData";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTickets } from "@/contexts/TicketContext";
+import { priorityLabels, priorityColors } from "@/data/types";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AvailabilityCalendar } from "@/components/AvailabilityCalendar";
+import { Calendar, CheckCircle2, MapPin } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Planification() {
+  const { tickets, setDisponibilites, matchAndConfirm, getArtisan } = useTickets();
   const navigate = useNavigate();
-  const planifies = mockTickets.filter((t) => t.status === "planifie");
-
+  const filtered = tickets.filter(t => t.status === "planifie");
+  const [activeTicket, setActiveTicket] = useState<string | null>(null);
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-        <p className="text-sm text-primary font-medium">
-          📅 Objectif : Montrer la coordination artisan/locataire et la planification.
-          <span className="text-muted-foreground font-normal"> → "Comment coordonnez-vous les RDV entre artisans et locataires aujourd'hui ?"</span>
-        </p>
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-bold">Planification</h1>
-        <p className="text-sm text-muted-foreground">{planifies.length} intervention(s) planifiée(s)</p>
-      </div>
-
-      {planifies.map((ticket) => (
-        <Card key={ticket.id} className="border-0 shadow-sm">
-          <CardContent className="p-6">
+    <div className="space-y-6 max-w-5xl">
+      <div><h1 className="text-xl font-bold">Planification</h1><p className="text-sm text-muted-foreground">Synchronisation automatique artisan / locataire</p></div>
+      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente</CardContent></Card> :
+      filtered.map(t => {
+        const artisan = t.artisanId ? getArtisan(t.artisanId) : null;
+        const isActive = activeTicket === t.id;
+        return (
+          <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4">
             <div className="flex items-start justify-between mb-3">
-              <div>
-                <span className="font-mono text-xs text-muted-foreground">{ticket.reference}</span>
-                <h3 className="font-semibold mt-0.5">{ticket.titre}</h3>
+              <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
+                <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
+                <p className="font-medium text-sm">{t.titre}</p>
+                <div className="flex gap-4 text-xs text-muted-foreground mt-1"><span>{artisan?.nom}</span><span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{t.bien.adresse}</span></div>
               </div>
-              <Badge variant="outline" className={`status-badge ${priorityColors[ticket.priorite]} border-0`}>{priorityLabels[ticket.priorite]}</Badge>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-muted rounded-lg p-4 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Date prévue</p>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  <span className="font-medium">{ticket.intervention?.datePrevisionnelle && new Date(ticket.intervention.datePrevisionnelle).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Artisan</p>
-                <div className="flex items-center gap-2">
-                  <Wrench className="h-4 w-4 text-accent" />
-                  <span className="font-medium">{ticket.artisan?.nom}</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Lieu</p>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{ticket.bien.adresse}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-2">
-              <Button className="bg-primary" size="sm">
-                <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Confirmer le RDV
+              <Button size="sm" variant={isActive ? "secondary" : "outline"} onClick={() => setActiveTicket(isActive ? null : t.id)}>
+                <Calendar className="h-3.5 w-3.5 mr-1" /> {isActive ? "Masquer" : "Planifier"}
               </Button>
-              <Button variant="outline" size="sm">Reprogrammer</Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/tickets/${ticket.id}`)}>Voir le dossier</Button>
             </div>
-          </CardContent>
-        </Card>
-      ))}
+            {isActive && <div className="space-y-4 mt-4 pt-4 border-t animate-fade-in">
+              <Tabs defaultValue="artisan">
+                <TabsList className="mb-3"><TabsTrigger value="artisan">Artisan</TabsTrigger><TabsTrigger value="locataire">Locataire</TabsTrigger></TabsList>
+                <TabsContent value="artisan"><AvailabilityCalendar title={`Créneaux ${artisan?.nom || "artisan"}`} selectedSlots={t.disponibilitesArtisan} onSlotsChange={s => setDisponibilites(t.id, "artisan", s)} highlightSlots={t.disponibilitesLocataire} /></TabsContent>
+                <TabsContent value="locataire"><AvailabilityCalendar title={`Créneaux ${t.locataire.nom}`} selectedSlots={t.disponibilitesLocataire} onSlotsChange={s => setDisponibilites(t.id, "locataire", s)} highlightSlots={t.disponibilitesArtisan} /></TabsContent>
+              </Tabs>
+              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                <span className="text-xs text-muted-foreground">Artisan: {t.disponibilitesArtisan.length} · Locataire: {t.disponibilitesLocataire.length}</span>
+                <Button size="sm" onClick={() => matchAndConfirm(t.id)} disabled={t.disponibilitesArtisan.length === 0 || t.disponibilitesLocataire.length === 0}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Trouver créneau</Button>
+              </div>
+            </div>}
+          </CardContent></Card>
+        );
+      })}
     </div>
   );
 }
