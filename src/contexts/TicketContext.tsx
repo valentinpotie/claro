@@ -126,6 +126,29 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Email envoyé à ${artisan.nom} (${artisan.email})`, type: "message_sent" },
       { msg: `Demande de devis pour : ${ticket.titre}`, type: "message_sent" },
     ]);
+
+    // Simulate artisan response with quote after 3 seconds
+    const montant = Math.floor(200 + Math.random() * 600);
+    const delais = ["2 jours", "3 jours", "5 jours", "1 semaine"];
+    const delai = delais[Math.floor(Math.random() * delais.length)];
+    setTimeout(() => {
+      const replyMsg: TicketMessage = {
+        id: `msg-${Date.now()}-reply`, from: "artisan",
+        content: `Bonjour, suite à votre demande, je vous transmets mon devis pour ${ticket.categorie} au ${ticket.bien.adresse}.\n\nMontant : ${montant} €\nDélai estimé : ${delai}\n\n📎 Devis_${artisan.nom.replace(/\s/g, "_")}_${ticket.reference}.pdf\n\nCordialement,\n${artisan.nom}`,
+        timestamp: new Date().toISOString(),
+      };
+      setTickets(prev => prev.map(t => t.id === ticketId ? {
+        ...t, messages: { ...t.messages, [artisanId]: [...(t.messages[artisanId] || []), replyMsg] }
+      } : t));
+      // Auto-add quote
+      const quote: Quote = { id: `q-${Date.now()}`, artisanId, artisanNom: artisan.nom, montant, delai, description: `${categoryLabels[ticket.categorie]} — ${ticket.bien.adresse}`, selected: false };
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, quotes: [...t.quotes, quote] } : t));
+      simulateAI(ticketId, [
+        { msg: `📩 Réponse reçue de ${artisan.nom}`, type: "notification" },
+        { msg: `Devis reçu : ${montant} € — Délai : ${delai}`, type: "notification" },
+        { msg: `📎 Pièce jointe : Devis_${artisan.nom.replace(/\s/g, "_")}.pdf`, type: "notification" },
+      ]);
+    }, 3000);
   }, [artisans, tickets, simulateAI]);
 
   const addQuote = useCallback((ticketId: string, artisanId: string, montant: number, delai: string, description: string) => {
