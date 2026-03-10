@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainItems = [
-  { title: "Tableau de bord", url: "/", icon: LayoutDashboard },
+  { title: "Tableau de bord", url: "/dashboard", icon: LayoutDashboard },
   { title: "Tickets", url: "/tickets", icon: ClipboardList },
   { title: "Nouveau signalement", url: "/signalement", icon: PlusCircle },
 ];
