@@ -32,8 +32,6 @@ const App = () => (
         <TicketProvider>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route element={<AppLayout><Routes><Route path="*" element={null} /></Routes></AppLayout>}>
-            </Route>
             {/* App routes wrapped in layout */}
             <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
             <Route path="/tickets" element={<AppLayout><TicketsList /></AppLayout>} />
