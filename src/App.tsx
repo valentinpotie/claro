@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TicketProvider } from "@/contexts/TicketContext";
 import { AppLayout } from "@/components/AppLayout";
+import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import TicketsList from "./pages/TicketsList";
 import TicketDetail from "./pages/TicketDetail";
@@ -29,24 +30,24 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <TicketProvider>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/tickets" element={<TicketsList />} />
-              <Route path="/tickets/:id" element={<TicketDetail />} />
-              <Route path="/signalement" element={<Signalement />} />
-              <Route path="/qualification" element={<Qualification />} />
-              <Route path="/artisans" element={<Artisans />} />
-              <Route path="/validation" element={<Validation />} />
-              <Route path="/planification" element={<Planification />} />
-              <Route path="/interventions" element={<Interventions />} />
-              <Route path="/facturation" element={<Facturation />} />
-              <Route path="/cloture" element={<Cloture />} />
-              <Route path="/assurance" element={<Assurance />} />
-              <Route path="/guide" element={<Guide />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            {/* App routes wrapped in layout */}
+            <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
+            <Route path="/tickets" element={<AppLayout><TicketsList /></AppLayout>} />
+            <Route path="/tickets/:id" element={<AppLayout><TicketDetail /></AppLayout>} />
+            <Route path="/signalement" element={<AppLayout><Signalement /></AppLayout>} />
+            <Route path="/qualification" element={<AppLayout><Qualification /></AppLayout>} />
+            <Route path="/artisans" element={<AppLayout><Artisans /></AppLayout>} />
+            <Route path="/validation" element={<AppLayout><Validation /></AppLayout>} />
+            <Route path="/planification" element={<AppLayout><Planification /></AppLayout>} />
+            <Route path="/interventions" element={<AppLayout><Interventions /></AppLayout>} />
+            <Route path="/facturation" element={<AppLayout><Facturation /></AppLayout>} />
+            <Route path="/cloture" element={<AppLayout><Cloture /></AppLayout>} />
+            <Route path="/assurance" element={<AppLayout><Assurance /></AppLayout>} />
+            <Route path="/guide" element={<AppLayout><Guide /></AppLayout>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </TicketProvider>
       </BrowserRouter>
     </TooltipProvider>
