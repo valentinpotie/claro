@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { 
   HardHat, ArrowRight, AlertTriangle, Clock, Users, Eye, 
   CheckCircle, Droplets, Flame, DoorOpen, Shield, Zap,
-  FileText, BarChart3, Wrench, ChevronRight, Mail, Phone, MessageSquare
+  FileText, BarChart3, Wrench, ChevronRight, Mail, TrendingDown, Timer, Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -44,13 +44,15 @@ const Landing = () => {
               Conçu pour les agences immobilières françaises
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
-              Vos sinistres et travaux,{" "}
-              <span className="text-primary">enfin sous contrôle.</span>
+              Reprenez le contrôle sur la gestion de{" "}
+              <span className="text-primary">vos sinistres et travaux.</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              SinistreFlow centralise, qualifie et pilote chaque demande de travaux — du signalement locataire à la clôture du dossier. Moins de charge, plus de visibilité.
+              Aujourd'hui, chaque incident locatif peut vous prendre jusqu'à <strong className="text-foreground">45 à 60 minutes</strong> de gestion&nbsp;: relances, coordination artisans, validation propriétaire, suivi du dossier.
+              <br className="hidden md:block" />
+              <span className="mt-2 block">Avec SinistreFlow, tout est structuré automatiquement — du signalement locataire à la clôture du dossier.</span>
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
               <Link to={DEMO_URL}>
                 <Button size="lg" className="h-12 px-8 text-base font-semibold gap-2">
                   Découvrir la plateforme
@@ -62,6 +64,20 @@ const Landing = () => {
                   Connexion
                 </Button>
               </Link>
+            </div>
+
+            {/* Chiffres clés hero */}
+            <div className="grid grid-cols-3 gap-6 max-w-2xl mx-auto">
+              {[
+                { value: "–60 %", label: "de temps de gestion par incident" },
+                { value: "0", label: "demande perdue" },
+                { value: "100 %", label: "de visibilité sur vos dossiers" },
+              ].map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <div className="text-3xl md:text-4xl font-black text-primary">{stat.value}</div>
+                  <div className="text-sm text-muted-foreground mt-1">{stat.label}</div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -112,26 +128,73 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Ce que les agences perdent aujourd'hui */}
+      <section className="py-20 md:py-28 bg-muted/30">
+        <div className="container mx-auto px-4 md:px-8">
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <p className="text-sm font-semibold text-destructive uppercase tracking-wider mb-3">Le coût caché</p>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6">
+              Ce que votre agence perd aujourd'hui.
+            </h2>
+            <p className="text-muted-foreground text-lg leading-relaxed">
+              Chaque logement génère en moyenne <strong className="text-foreground">1 incident par an</strong>.
+              <br />
+              Pour une agence qui gère <strong className="text-foreground">400 lots</strong>, cela représente&nbsp;:
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto mb-12">
+            {[
+              { value: "400", label: "incidents par an", icon: AlertTriangle },
+              { value: "45 min", label: "de gestion par incident", icon: Timer },
+              { value: "≈ 300 h", label: "de travail par an", icon: Clock },
+              { value: "≈ 2 mois", label: "de travail gestionnaire", icon: TrendingDown },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-xl border bg-card p-6 text-center hover:shadow-md transition-shadow">
+                <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center mx-auto mb-3">
+                  <stat.icon className="h-5 w-5 text-destructive" />
+                </div>
+                <div className="text-2xl md:text-3xl font-black text-foreground">{stat.value}</div>
+                <div className="text-sm text-muted-foreground mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="max-w-2xl mx-auto text-center">
+            <p className="text-muted-foreground text-lg mb-4">Et pourtant, cette gestion reste&nbsp;:</p>
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+              {["Dispersée", "Difficile à suivre", "Très chronophage"].map((item) => (
+                <span key={item} className="inline-flex items-center gap-2 rounded-full border bg-destructive/5 px-4 py-2 text-sm font-medium text-destructive">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {item}
+                </span>
+              ))}
+            </div>
+            <p className="text-lg font-semibold text-primary">
+              SinistreFlow transforme ce chaos en workflow structuré.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Problème */}
-      <section id="probleme" className="py-20 md:py-28 bg-muted/30">
+      <section id="probleme" className="py-20 md:py-28">
         <div className="container mx-auto px-4 md:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Le constat</p>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              La gestion des sinistres, c'est encore le chaos.
+              Pourquoi la gestion des sinistres vous fait perdre autant de temps.
             </h2>
-            <p className="text-muted-foreground text-lg">
-              Chaque jour, les agences perdent du temps à courir après l'information. Le résultat&nbsp;: des dossiers qui traînent, des locataires frustrés, des propriétaires dans le flou.
+            <p className="text-muted-foreground text-lg leading-relaxed">
+              Chaque incident déclenche une chaîne d'actions manuelles&nbsp;: qualifier le problème, récupérer les informations, contacter un artisan, demander un devis, attendre la validation du propriétaire, organiser le rendez-vous, suivre l'intervention, gérer la facture.
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto mb-12">
             {[
-              { icon: Mail, title: "Demandes dispersées", desc: "Les signalements arrivent par e-mail, téléphone, SMS, courrier… Impossible de tout centraliser." },
-              { icon: FileText, title: "Informations incomplètes", desc: "Photos manquantes, adresses imprécises, descriptions floues. On passe son temps à relancer." },
-              { icon: AlertTriangle, title: "Priorisation à l'aveugle", desc: "Sans scoring, tout est urgent ou rien ne l'est. Les vrais urgences passent à la trappe." },
+              { icon: Mail, title: "Demandes dispersées", desc: "Les signalements arrivent par e-mail, téléphone, SMS… Vous passez votre temps à tout rassembler." },
+              { icon: FileText, title: "Informations incomplètes", desc: "Photos manquantes, descriptions floues. Vous relancez constamment pour obtenir les détails." },
+              { icon: AlertTriangle, title: "Priorisation à l'aveugle", desc: "Sans scoring, tout semble urgent. Les vraies urgences passent à la trappe." },
               { icon: Users, title: "Coordination laborieuse", desc: "Artisans, locataires, propriétaires : chacun attend l'autre. Les allers-retours s'accumulent." },
-              { icon: Clock, title: "Validations qui traînent", desc: "Attendre l'accord du propriétaire pour chaque devis ralentit tout le processus." },
-              { icon: Eye, title: "Aucune visibilité", desc: "Où en est le dossier ? Qui fait quoi ? Impossible de répondre sans fouiller dans ses e-mails." },
+              { icon: Clock, title: "Validations qui traînent", desc: "Attendre l'accord du propriétaire pour chaque devis ralentit tout votre processus." },
+              { icon: Eye, title: "Aucune visibilité", desc: "Où en est le dossier ? Qui fait quoi ? Impossible de répondre sans fouiller dans vos e-mails." },
             ].map((item) => (
               <div key={item.title} className="rounded-xl border bg-card p-6 hover:shadow-md transition-shadow">
                 <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center mb-4">
@@ -142,29 +205,38 @@ const Landing = () => {
               </div>
             ))}
           </div>
+          <div className="max-w-3xl mx-auto">
+            <div className="rounded-xl border-2 border-dashed border-destructive/20 bg-destructive/5 p-6 text-center">
+              <p className="text-muted-foreground font-medium">
+                <strong className="text-foreground">Résultat&nbsp;:</strong> des dossiers qui traînent, des relances constantes, un manque de visibilité et une forte charge mentale pour vos gestionnaires.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Solution */}
-      <section id="solution" className="py-20 md:py-28">
+      <section id="solution" className="py-20 md:py-28 bg-muted/30">
         <div className="container mx-auto px-4 md:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">La solution</p>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              Une plateforme qui structure tout, automatiquement.
+              Une plateforme qui fait avancer les dossiers à votre place.
             </h2>
-            <p className="text-muted-foreground text-lg">
-              SinistreFlow transforme chaque signalement en un dossier structuré, qualifié et piloté de bout en bout.
+            <p className="text-muted-foreground text-lg leading-relaxed">
+              SinistreFlow transforme chaque signalement locataire en dossier structuré et piloté automatiquement.
+              <br />
+              <strong className="text-foreground">Vous ne gérez plus des e-mails ou des appels. Vous pilotez un workflow clair.</strong>
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
-              { icon: FileText, title: "Centralisation", desc: "Toutes les demandes au même endroit, structurées dès la réception." },
-              { icon: Zap, title: "Qualification intelligente", desc: "Catégorisation automatique, scoring d'urgence et prédiction de responsabilité." },
-              { icon: Wrench, title: "Routing artisans", desc: "Le bon artisan est identifié et contacté automatiquement selon le type d'incident." },
-              { icon: CheckCircle, title: "Validation propriétaire", desc: "Envoi automatique des devis pour approbation, suivi en temps réel." },
+              { icon: FileText, title: "Centralisation", desc: "Toutes les demandes arrivent dans un seul espace, structurées dès la réception." },
+              { icon: Zap, title: "Qualification intelligente", desc: "La plateforme catégorise l'incident, score l'urgence et estime la responsabilité probable." },
+              { icon: Wrench, title: "Routing artisans", desc: "Le bon artisan est identifié automatiquement selon le type d'incident et la localisation." },
+              { icon: CheckCircle, title: "Validation propriétaire", desc: "Les devis sont envoyés automatiquement pour validation. Vous suivez les retours en temps réel." },
               { icon: BarChart3, title: "Suivi complet", desc: "Chaque dossier est traçable de la demande initiale à la clôture." },
-              { icon: Shield, title: "Gestion assurance", desc: "Identification automatique des sinistres éligibles, constitution du dossier." },
+              { icon: Shield, title: "Gestion assurance", desc: "Identification automatique des sinistres éligibles et constitution du dossier." },
             ].map((item) => (
               <div key={item.title} className="rounded-xl border bg-card p-6 hover:shadow-md transition-shadow">
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
@@ -179,7 +251,7 @@ const Landing = () => {
       </section>
 
       {/* Comment ça marche */}
-      <section id="fonctionnement" className="py-20 md:py-28 bg-muted/30">
+      <section id="fonctionnement" className="py-20 md:py-28">
         <div className="container mx-auto px-4 md:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Fonctionnement</p>
@@ -191,7 +263,7 @@ const Landing = () => {
             {[
               { step: "01", title: "Signalement", desc: "Le locataire déclare son problème via un formulaire guidé avec photos." },
               { step: "02", title: "Qualification", desc: "La plateforme qualifie, score l'urgence et prédit la responsabilité." },
-              { step: "03", title: "Pilotage", desc: "L'agence valide, contacte l'artisan et obtient l'accord du propriétaire." },
+              { step: "03", title: "Pilotage", desc: "Vous validez, contactez l'artisan et obtenez l'accord du propriétaire." },
               { step: "04", title: "Clôture", desc: "Intervention réalisée, facture intégrée, dossier clôturé proprement." },
             ].map((item, i) => (
               <div key={item.step} className="relative text-center">
@@ -208,20 +280,20 @@ const Landing = () => {
       </section>
 
       {/* Bénéfices */}
-      <section id="benefices" className="py-20 md:py-28">
+      <section id="benefices" className="py-20 md:py-28 bg-muted/30">
         <div className="container mx-auto px-4 md:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Résultats</p>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              Ce que ça change pour votre agence.
+              Ce que SinistreFlow change pour votre agence.
             </h2>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
-              { title: "Gain de temps", desc: "Moins de ressaisie, moins de relances, moins d'appels. Chaque dossier avance seul." },
-              { title: "Zéro oubli", desc: "Chaque demande est tracée. Rien ne tombe entre les mailles du filet." },
-              { title: "Priorisation claire", desc: "L'urgence est scorée automatiquement. Vous traitez ce qui compte en premier." },
-              { title: "Vision complète", desc: "Tableau de bord centralisé avec l'état de chaque dossier en temps réel." },
+              { title: "Gain de temps", desc: "Jusqu'à 30 minutes économisées par incident. Moins de ressaisie, moins de relances." },
+              { title: "Zéro oubli", desc: "Chaque demande est tracée automatiquement. Rien ne tombe entre les mailles du filet." },
+              { title: "Priorisation claire", desc: "Les urgences sont identifiées automatiquement. Vous traitez ce qui compte en premier." },
+              { title: "Vision complète", desc: "Un tableau de bord clair avec tous vos dossiers en cours, en un coup d'œil." },
               { title: "Coordination fluide", desc: "Artisans, propriétaires et locataires sont dans la boucle au bon moment." },
               { title: "Moins de charge mentale", desc: "Le workflow guide vos équipes étape par étape. Fini les post-it et les relances." },
             ].map((item) => (
@@ -238,7 +310,7 @@ const Landing = () => {
       </section>
 
       {/* Cas d'usage */}
-      <section className="py-20 md:py-28 bg-muted/30">
+      <section className="py-20 md:py-28">
         <div className="container mx-auto px-4 md:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Cas d'usage</p>
@@ -266,7 +338,7 @@ const Landing = () => {
       </section>
 
       {/* Crédibilité */}
-      <section className="py-20 md:py-28">
+      <section className="py-20 md:py-28 bg-muted/30">
         <div className="container mx-auto px-4 md:px-8">
           <div className="max-w-2xl mx-auto text-center">
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
@@ -276,10 +348,10 @@ const Landing = () => {
               Conçu avec les professionnels de l'immobilier.
             </h2>
             <p className="text-muted-foreground text-lg leading-relaxed mb-3">
-              SinistreFlow a été pensé à partir d'échanges concrets avec des gestionnaires locatifs, des responsables d'agence et des administrateurs de biens.
+              Conçu à partir d'échanges avec des gestionnaires locatifs et directeurs d'agences immobilières.
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              Chaque fonctionnalité répond à un irritant réel du terrain. Pas de théorie, pas de gadget — uniquement ce qui fait gagner du temps au quotidien.
+              Chaque fonctionnalité répond à un irritant réel du terrain. Pas de théorie, pas de gadget — uniquement ce qui vous fait gagner du temps au quotidien.
             </p>
           </div>
         </div>
@@ -290,23 +362,23 @@ const Landing = () => {
         <div className="container mx-auto px-4 md:px-8">
           <div className="max-w-2xl mx-auto text-center">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              Prêt à simplifier votre gestion&nbsp;?
+              Prêt à simplifier la gestion de vos sinistres&nbsp;?
             </h2>
             <p className="text-primary-foreground/80 text-lg mb-8">
-              Découvrez comment SinistreFlow peut transformer la gestion de vos sinistres et travaux. Accédez à la démo en un clic.
+              Découvrez comment SinistreFlow peut transformer votre gestion des incidents locatifs. Accédez à la démo en un clic.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to={DEMO_URL}>
                 <Button size="lg" variant="secondary" className="h-12 px-8 text-base font-semibold gap-2">
-                  Accéder à la démo
+                  Voir la démo
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <a href="mailto:contact@sinistreflow.fr">
+              <Link to={DEMO_URL}>
                 <Button size="lg" variant="outline" className="h-12 px-8 text-base font-medium border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
-                  Demander une démo personnalisée
+                  Connexion
                 </Button>
-              </a>
+              </Link>
             </div>
           </div>
         </div>
