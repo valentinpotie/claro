@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route } from "react-router-dom";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 import { TicketProvider } from "@/contexts/TicketContext";
 import { AppLayout } from "@/components/AppLayout";
 import Landing from "./pages/Landing";
@@ -13,12 +14,13 @@ import Signalement from "./pages/Signalement";
 import Qualification from "./pages/Qualification";
 import Artisans from "./pages/Artisans";
 import Validation from "./pages/Validation";
-import Planification from "./pages/Planification";
+import ConfirmationPassage from "./pages/ConfirmationPassage";
 import Interventions from "./pages/Interventions";
 import Facturation from "./pages/Facturation";
 import Cloture from "./pages/Cloture";
 import Assurance from "./pages/Assurance";
 import Guide from "./pages/Guide";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,7 +30,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <HashRouter>
+        <SettingsProvider>
         <TicketProvider>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -40,16 +43,18 @@ const App = () => (
             <Route path="/qualification" element={<AppLayout><Qualification /></AppLayout>} />
             <Route path="/artisans" element={<AppLayout><Artisans /></AppLayout>} />
             <Route path="/validation" element={<AppLayout><Validation /></AppLayout>} />
-            <Route path="/planification" element={<AppLayout><Planification /></AppLayout>} />
+            <Route path="/confirmation" element={<AppLayout><ConfirmationPassage /></AppLayout>} />
             <Route path="/interventions" element={<AppLayout><Interventions /></AppLayout>} />
             <Route path="/facturation" element={<AppLayout><Facturation /></AppLayout>} />
             <Route path="/cloture" element={<AppLayout><Cloture /></AppLayout>} />
             <Route path="/assurance" element={<AppLayout><Assurance /></AppLayout>} />
             <Route path="/guide" element={<AppLayout><Guide /></AppLayout>} />
+            <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TicketProvider>
-      </BrowserRouter>
+        </SettingsProvider>
+      </HashRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

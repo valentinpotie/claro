@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { Ticket, Artisan, AIJournalEntry, Quote, TimeSlot, TicketMessage, SEUIL_DELEGATION, Responsabilite, TicketCategory, TicketPriority, categoryLabels } from "@/data/types";
+import { Ticket, Artisan, AIJournalEntry, Quote, TicketMessage, Responsabilite, TicketCategory, TicketPriority, categoryLabels } from "@/data/types";
 import { initialTickets, initialArtisans } from "@/data/mockData";
+import { useSettings } from "@/contexts/SettingsContext";
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -10,21 +11,20 @@ interface TicketContextType {
   activeTicketId: string | null;
   setShowJournal: (v: boolean) => void;
   setActiveTicketId: (v: string | null) => void;
-  createTicket: (data: { titre: string; description: string; categorie: TicketCategory; priorite: TicketPriority; urgence: boolean; locataireNom: string; locataireTel: string; locataireEmail: string; adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string }) => Ticket;
+  createTicket: (data: { titre: string; description: string; categorie: TicketCategory; priorite: TicketPriority; urgence: boolean; locataireNom: string; locataireTel: string; locataireEmail: string; adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string; mailSource?: { from: string; to: string; subject: string; body: string; receivedAt: string } }) => Ticket;
   updateTicket: (id: string, data: Partial<Ticket>) => void;
   qualifyTicket: (id: string) => void;
   sendArtisanContact: (ticketId: string, artisanId: string) => void;
-  addQuote: (ticketId: string, artisanId: string, montant: number, delai: string, description: string) => void;
-  selectQuoteAndAdvance: (ticketId: string, quoteId: string) => void;
+  receiveQuote: (ticketId: string) => void;
   validateQuote: (ticketId: string) => void;
   ownerRespond: (ticketId: string, approved: boolean) => void;
-  setDisponibilites: (ticketId: string, role: "artisan" | "locataire", slots: TimeSlot[]) => void;
-  matchAndConfirm: (ticketId: string) => void;
-  startIntervention: (ticketId: string) => void;
-  completeIntervention: (ticketId: string) => void;
-  validateIntervention: (ticketId: string) => void;
+  confirmPassage: (ticketId: string, confirmed: boolean) => void;
   validateFacture: (ticketId: string) => void;
   closeTicket: (ticketId: string) => void;
+  contactSyndic: (ticketId: string) => void;
+  relanceSyndic: (ticketId: string) => void;
+  escaladeSyndic: (ticketId: string) => void;
+  resolveSyndic: (ticketId: string) => void;
   addMessage: (ticketId: string, artisanId: string, content: string, from: "agence" | "artisan") => void;
   getTicket: (id: string) => Ticket | undefined;
   getArtisan: (id: string) => Artisan | undefined;
@@ -41,6 +41,7 @@ export function useTickets() {
 let ticketCounter = 9;
 
 export function TicketProvider({ children }: { children: React.ReactNode }) {
+  const { settings, needsOwnerApproval } = useSettings();
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [artisans] = useState<Artisan[]>(initialArtisans);
   const [journalEntries, setJournalEntries] = useState<AIJournalEntry[]>([]);
@@ -50,10 +51,8 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
   const simulateAI = useCallback((ticketId: string, actions: { msg: string; type: AIJournalEntry["type"] }[], onComplete?: () => void) => {
     setActiveTicketId(ticketId);
     setShowJournal(true);
-    const ids: string[] = [];
     actions.forEach((action, i) => {
       const entryId = `${Date.now()}-${ticketId}-${i}`;
-      ids.push(entryId);
       setTimeout(() => {
         setJournalEntries(prev => [...prev, {
           id: entryId, ticketId, timestamp: new Date().toISOString(),
@@ -82,8 +81,9 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       urgence: data.urgence,
       locataire: { nom: data.locataireNom, telephone: data.locataireTel, email: data.locataireEmail },
       bien: { adresse: data.adresse, lot: data.lot, proprietaire: data.proprietaire, telephoneProprio: data.telephoneProprio, emailProprio: data.emailProprio },
-      quotes: [], messages: {}, disponibilitesArtisan: [], disponibilitesLocataire: [],
+      quotes: [], messages: {},
       photos: [], notes: [],
+      mailSource: data.mailSource,
     };
     setTickets(prev => [ticket, ...prev]);
     simulateAI(id, [
@@ -96,18 +96,31 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
   const qualifyTicket = useCallback((id: string) => {
     const ticket = tickets.find(t => t.id === id);
     if (!ticket) return;
-    const responsabilites: Responsabilite[] = ["proprietaire", "locataire", "partagee"];
-    const resp = ticket.categorie === "autre" ? "partagee" : (["plomberie", "electricite", "chauffage", "toiture", "humidite"].includes(ticket.categorie) ? "proprietaire" : "locataire");
-    simulateAI(id, [
-      { msg: "Analyse du signalement en cours…", type: "analysis" },
-      { msg: `Description analysée : "${ticket.description.slice(0, 60)}…"`, type: "analysis" },
-      { msg: `Catégorie détectée : ${ticket.categorie}`, type: "analysis" },
-      { msg: `Analyse de responsabilité : ${resp === "proprietaire" ? "Propriétaire" : resp === "locataire" ? "Locataire" : "Partagée"}`, type: "analysis" },
-      { msg: "Ticket qualifié → Orientation : Réparation/Entretien", type: "action" },
-      { msg: "Passage à l'étape Recherche artisan", type: "action" },
-    ], () => {
-      update(id, { status: "recherche_artisan", responsabilite: resp as Responsabilite });
-    });
+    const isSyndic = ticket.responsabilite === "syndic" || ticket.syndic != null;
+    const resp = isSyndic ? "syndic" : (ticket.categorie === "autre" ? "partagee" : (["plomberie", "electricite", "chauffage", "toiture", "humidite"].includes(ticket.categorie) ? "proprietaire" : "locataire"));
+    if (resp === "syndic") {
+      simulateAI(id, [
+        { msg: "Analyse du signalement en cours…", type: "analysis" },
+        { msg: `Description analysée : "${ticket.description.slice(0, 60)}…"`, type: "analysis" },
+        { msg: "Parties communes détectées → Responsabilité : Syndic", type: "analysis" },
+        { msg: `Syndic identifié : ${ticket.syndic?.nom || "À renseigner"}`, type: "analysis" },
+        { msg: "Diagnostic terminé → Parcours Syndic activé", type: "action" },
+        { msg: "Passage à l'étape Contact syndic", type: "action" },
+      ], () => {
+        update(id, { status: "contact_syndic", responsabilite: "syndic" });
+      });
+    } else {
+      simulateAI(id, [
+        { msg: "Analyse du signalement en cours…", type: "analysis" },
+        { msg: `Description analysée : "${ticket.description.slice(0, 60)}…"`, type: "analysis" },
+        { msg: `Catégorie détectée : ${ticket.categorie}`, type: "analysis" },
+        { msg: `Analyse de responsabilité : ${resp === "proprietaire" ? "Propriétaire" : resp === "locataire" ? "Locataire" : "Partagée"}`, type: "analysis" },
+        { msg: "Diagnostic terminé → Orientation : Réparation/Entretien", type: "action" },
+        { msg: "Passage à l'étape Contact artisan", type: "action" },
+      ], () => {
+        update(id, { status: "contact_artisan", responsabilite: resp as Responsabilite });
+      });
+    }
   }, [tickets, simulateAI, update]);
 
   const sendArtisanContact = useCallback((ticketId: string, artisanId: string) => {
@@ -116,111 +129,109 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     if (!artisan || !ticket) return;
     const msg: TicketMessage = {
       id: `msg-${Date.now()}`, from: "agence",
-      content: `Bonjour ${artisan.nom}, nous avons un problème de ${ticket.categorie} au ${ticket.bien.adresse}. Pouvez-vous nous faire parvenir un devis ? Merci.`,
+      content: `Bonjour ${artisan.nom}, nous avons un problème de ${ticket.categorie} au ${ticket.bien.adresse}. Pouvez-vous vous déplacer pour faire un diagnostic sur place ? Merci.`,
       timestamp: new Date().toISOString(),
     };
     setTickets(prev => prev.map(t => t.id === ticketId ? {
-      ...t, messages: { ...t.messages, [artisanId]: [...(t.messages[artisanId] || []), msg] }
+      ...t,
+      artisanId: artisanId,
+      messages: { ...t.messages, [artisanId]: [...(t.messages[artisanId] || []), msg] }
     } : t));
     simulateAI(ticketId, [
       { msg: `Email envoyé à ${artisan.nom} (${artisan.email})`, type: "message_sent" },
-      { msg: `Demande de devis pour : ${ticket.titre}`, type: "message_sent" },
+      { msg: `Demande de déplacement pour diagnostic : ${ticket.titre}`, type: "message_sent" },
     ]);
 
-    // Simulate artisan response with quote after 3 seconds
-    const montant = Math.floor(200 + Math.random() * 600);
-    const delais = ["2 jours", "3 jours", "5 jours", "1 semaine"];
-    const delai = delais[Math.floor(Math.random() * delais.length)];
+    // Simulate artisan response after 3 seconds
     setTimeout(() => {
       const replyMsg: TicketMessage = {
         id: `msg-${Date.now()}-reply`, from: "artisan",
-        content: `Bonjour, suite à votre demande, je vous transmets mon devis pour ${ticket.categorie} au ${ticket.bien.adresse}.\n\nMontant : ${montant} €\nDélai estimé : ${delai}\n\n📎 Devis_${artisan.nom.replace(/\s/g, "_")}_${ticket.reference}.pdf\n\nCordialement,\n${artisan.nom}`,
+        content: `Bonjour, suite à votre demande, je peux me déplacer pour un diagnostic au ${ticket.bien.adresse}.\n\nJe suis disponible demain matin. Je vous enverrai mon devis après le diagnostic sur place.\n\nCordialement,\n${artisan.nom}`,
         timestamp: new Date().toISOString(),
       };
       setTickets(prev => prev.map(t => t.id === ticketId ? {
         ...t, messages: { ...t.messages, [artisanId]: [...(t.messages[artisanId] || []), replyMsg] }
       } : t));
-      // Auto-add quote
-      const quote: Quote = { id: `q-${Date.now()}`, artisanId, artisanNom: artisan.nom, montant, delai, description: `${categoryLabels[ticket.categorie]} — ${ticket.bien.adresse}`, selected: false };
-      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, quotes: [...t.quotes, quote] } : t));
       simulateAI(ticketId, [
         { msg: `📩 Réponse reçue de ${artisan.nom}`, type: "notification" },
-        { msg: `Devis reçu : ${montant} € — Délai : ${delai}`, type: "notification" },
-        { msg: `📎 Pièce jointe : Devis_${artisan.nom.replace(/\s/g, "_")}.pdf`, type: "notification" },
+        { msg: `L'artisan accepte de se déplacer pour un diagnostic sur place`, type: "notification" },
+        { msg: "En attente du devis après diagnostic…", type: "notification" },
       ]);
     }, 3000);
   }, [artisans, tickets, simulateAI]);
 
-  const addQuote = useCallback((ticketId: string, artisanId: string, montant: number, delai: string, description: string) => {
-    const artisan = artisans.find(a => a.id === artisanId);
-    if (!artisan) return;
-    const quote: Quote = { id: `q-${Date.now()}`, artisanId, artisanNom: artisan.nom, montant, delai, description, selected: false };
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, quotes: [...t.quotes, quote] } : t));
-    simulateAI(ticketId, [
-      { msg: `Devis reçu de ${artisan.nom} : ${montant} €`, type: "notification" },
-    ]);
-  }, [artisans, simulateAI]);
-
-  const selectQuoteAndAdvance = useCallback((ticketId: string, quoteId: string) => {
+  const receiveQuote = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
-    const quote = ticket?.quotes.find(q => q.id === quoteId);
-    if (!ticket || !quote) return;
+    if (!ticket || !ticket.artisanId) return;
+    const artisan = artisans.find(a => a.id === ticket.artisanId);
+    if (!artisan) return;
+    const montant = Math.floor(200 + Math.random() * 600);
+    const delais = ["2 jours", "3 jours", "5 jours", "1 semaine"];
+    const delai = delais[Math.floor(Math.random() * delais.length)];
+    const quote: Quote = { id: `q-${Date.now()}`, artisanId: ticket.artisanId, artisanNom: artisan.nom, montant, delai, description: `${categoryLabels[ticket.categorie]} — ${ticket.bien.adresse}`, selected: true };
+    const replyMsg: TicketMessage = {
+      id: `msg-${Date.now()}-devis`, from: "artisan",
+      content: `Bonjour, suite à mon passage sur place, voici mon devis pour les travaux au ${ticket.bien.adresse}.\n\nMontant : ${montant} €\nDélai estimé : ${delai}\n\n📎 Devis_${artisan.nom.replace(/\s/g, "_")}_${ticket.reference}.pdf\n\nCordialement,\n${artisan.nom}`,
+      timestamp: new Date().toISOString(),
+    };
+    setTickets(prev => prev.map(t => t.id === ticketId ? {
+      ...t,
+      status: "reception_devis" as const,
+      quotes: [quote],
+      selectedQuoteId: quote.id,
+      messages: { ...t.messages, [ticket.artisanId!]: [...(t.messages[ticket.artisanId!] || []), replyMsg] }
+    } : t));
     simulateAI(ticketId, [
-      { msg: `Devis sélectionné : ${quote.artisanNom} — ${quote.montant} €`, type: "action" },
-      { msg: "Passage à l'étape Validation", type: "action" },
-    ], () => {
-      update(ticketId, {
-        status: "validation_proprio",
-        selectedQuoteId: quoteId,
-        artisanId: quote.artisanId,
-        quotes: ticket.quotes.map(q => ({ ...q, selected: q.id === quoteId })),
-        validationStatus: "en_attente",
-      });
-    });
-  }, [tickets, simulateAI, update]);
+      { msg: `📩 Devis reçu de ${artisan.nom} après diagnostic sur place`, type: "notification" },
+      { msg: `Montant : ${montant} € — Délai : ${delai}`, type: "notification" },
+      { msg: "Passage à l'étape Réception devis", type: "action" },
+    ]);
+  }, [tickets, artisans, simulateAI]);
 
   const validateQuote = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket) return;
     const quote = ticket.quotes.find(q => q.id === ticket.selectedQuoteId);
     if (!quote) return;
-    if (quote.montant <= SEUIL_DELEGATION) {
+    const requiresOwner = needsOwnerApproval(quote.montant);
+    if (!requiresOwner) {
       simulateAI(ticketId, [
-        { msg: `Montant du devis : ${quote.montant} € — dans le seuil de délégation (${SEUIL_DELEGATION} €)`, type: "validation" },
-        { msg: "Validation directe par l'agence — propriétaire non sollicité", type: "validation" },
+        { msg: `Montant du devis : ${quote.montant} € — sous le seuil de délégation (${settings.delegation_threshold} €)`, type: "validation" },
+        { msg: "Validé automatiquement par l'agence — propriétaire non sollicité", type: "validation" },
         { msg: `Confirmation envoyée à ${quote.artisanNom}`, type: "message_sent" },
         { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
-        { msg: "Passage à l'étape Planification", type: "action" },
+        { msg: "Passage à l'étape Intervention", type: "action" },
       ], () => {
-        update(ticketId, { status: "planifie", validationStatus: "approuve" });
+        update(ticketId, { status: "intervention", validationStatus: "approuve" });
       });
     } else {
+      const reason = settings.always_ask_owner
+        ? "Accord propriétaire systématique (règle agence)"
+        : `Montant du devis : ${quote.montant} € — au-dessus du seuil (${settings.delegation_threshold} €)`;
       simulateAI(ticketId, [
-        { msg: `Montant du devis : ${quote.montant} € — au-dessus du seuil (${SEUIL_DELEGATION} €)`, type: "validation" },
-        { msg: `Demande de validation envoyée à ${ticket.bien.proprietaire} (${ticket.bien.emailProprio})`, type: "message_sent" },
+        { msg: reason, type: "validation" },
+        { msg: `Demande d'accord envoyée à ${ticket.bien.proprietaire} (${ticket.bien.emailProprio})`, type: "message_sent" },
         { msg: "En attente de la réponse du propriétaire…", type: "notification" },
       ]);
-      update(ticketId, { validationStatus: "en_attente" });
+      update(ticketId, { status: "validation_proprio", validationStatus: "en_attente" });
 
       // Simulate owner approval after 3 seconds
       setTimeout(() => {
-        const artisanObj = artisans.find(a => a.id === ticket.artisanId);
-        // Show approval response first
         update(ticketId, { validationStatus: "approuve" });
+        const artisanObj = artisans.find(a => a.id === ticket.artisanId);
         simulateAI(ticketId, [
           { msg: `✅ ${ticket.bien.proprietaire} a approuvé le devis`, type: "validation" },
-          { msg: `Message envoyé à ${artisanObj?.nom} : "Votre intervention a été validée pour le logement de ${ticket.locataire.nom}. Merci d'indiquer vos disponibilités."`, type: "message_sent" },
-          { msg: `Message envoyé à ${ticket.locataire.nom} : "Une intervention est prévue chez vous. Merci d'indiquer vos créneaux disponibles."`, type: "message_sent" },
-          { msg: "Passage à l'étape Planification", type: "action" },
+          { msg: `Confirmation envoyée à ${artisanObj?.nom}`, type: "message_sent" },
+          { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
+          { msg: "Passage à l'étape Intervention", type: "action" },
         ], () => {
-          // Delay transition so user sees the owner's response
           setTimeout(() => {
-            update(ticketId, { status: "planifie" });
+            update(ticketId, { status: "intervention" });
           }, 2000);
         });
       }, 3000);
     }
-  }, [tickets, simulateAI, update]);
+  }, [tickets, artisans, settings, needsOwnerApproval, simulateAI, update]);
 
   const ownerRespond = useCallback((ticketId: string, approved: boolean) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -229,92 +240,49 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     if (approved) {
       simulateAI(ticketId, [
         { msg: `✅ ${ticket.bien.proprietaire} a approuvé le devis`, type: "validation" },
-        { msg: `Message envoyé à ${artisan?.nom} : "Votre intervention a été validée pour le logement de ${ticket.locataire.nom}. Merci d'indiquer vos disponibilités."`, type: "message_sent" },
-        { msg: `Message envoyé à ${ticket.locataire.nom} : "Une intervention est prévue chez vous. Merci d'indiquer vos créneaux disponibles."`, type: "message_sent" },
-        { msg: "Passage à l'étape Planification", type: "action" },
+        { msg: `Confirmation envoyée à ${artisan?.nom}`, type: "message_sent" },
+        { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
+        { msg: "Passage à l'étape Intervention", type: "action" },
       ], () => {
-        update(ticketId, { status: "planifie", validationStatus: "approuve" });
+        update(ticketId, { status: "intervention", validationStatus: "approuve" });
       });
     } else {
       simulateAI(ticketId, [
         { msg: `❌ ${ticket.bien.proprietaire} a refusé le devis`, type: "validation" },
-        { msg: "Ticket en attente — possibilité de soumettre un nouveau devis", type: "notification" },
+        { msg: "Retour à l'étape Contact artisan — possibilité de contacter un autre artisan", type: "notification" },
       ], () => {
-        update(ticketId, { validationStatus: "refuse", status: "recherche_artisan", selectedQuoteId: undefined, artisanId: undefined });
+        update(ticketId, { validationStatus: "refuse", status: "contact_artisan", selectedQuoteId: undefined, artisanId: undefined, quotes: [] });
       });
     }
   }, [tickets, artisans, simulateAI, update]);
 
-  const setDisponibilites = useCallback((ticketId: string, role: "artisan" | "locataire", slots: TimeSlot[]) => {
-    const field = role === "artisan" ? "disponibilitesArtisan" : "disponibilitesLocataire";
-    update(ticketId, { [field]: slots });
-    simulateAI(ticketId, [
-      { msg: `Disponibilités ${role === "artisan" ? "de l'artisan" : "du locataire"} enregistrées (${slots.length} créneaux)`, type: "notification" },
-    ]);
-  }, [update, simulateAI]);
-
-  const matchAndConfirm = useCallback((ticketId: string) => {
+  const confirmPassage = useCallback((ticketId: string, confirmed: boolean) => {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket) return;
-    const artisan = artisans.find(a => a.id === ticket.artisanId);
-    // Find first common slot
-    const match = ticket.disponibilitesArtisan.find(a =>
-      ticket.disponibilitesLocataire.some(l => l.date === a.date && l.heure === a.heure)
-    );
-    if (match) {
+    const quote = ticket.quotes.find(q => q.selected);
+    if (confirmed) {
       simulateAI(ticketId, [
-        { msg: "Analyse des disponibilités en cours…", type: "matching" },
-        { msg: `Créneau commun identifié : ${match.date} à ${match.heure}`, type: "matching" },
-        { msg: `Confirmation envoyée à ${artisan?.nom}`, type: "message_sent" },
-        { msg: `Confirmation envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
-        { msg: "Rendez-vous confirmé — Passage à l'étape Intervention", type: "action" },
+        { msg: "✅ Passage de l'artisan confirmé par le gestionnaire", type: "validation" },
+        { msg: "Passage à l'étape Facturation", type: "action" },
       ], () => {
-        update(ticketId, { status: "intervention", rdv: match, interventionStatus: "planifie" });
+        update(ticketId, {
+          status: "facturation", passageConfirme: true,
+          facture: {
+            montant: quote?.montant || 0, payee: false,
+            refFacture: `FAC-2026-${String(Math.floor(Math.random() * 9999)).padStart(4, "0")}`,
+            dateFacture: new Date().toISOString().slice(0, 10),
+            prestation: quote?.description || "",
+          },
+        });
       });
     } else {
       simulateAI(ticketId, [
-        { msg: "Analyse des disponibilités en cours…", type: "matching" },
-        { msg: "❌ Aucun créneau commun trouvé", type: "matching" },
-        { msg: "Demande de nouveaux créneaux envoyée aux deux parties", type: "message_sent" },
-      ]);
-    }
-  }, [tickets, artisans, simulateAI, update]);
-
-  const startIntervention = useCallback((ticketId: string) => {
-    update(ticketId, { interventionStatus: "en_cours" });
-    simulateAI(ticketId, [
-      { msg: "Intervention démarrée — artisan sur place", type: "action" },
-    ]);
-  }, [update, simulateAI]);
-
-  const completeIntervention = useCallback((ticketId: string) => {
-    update(ticketId, { interventionStatus: "termine" });
-    const ticket = tickets.find(t => t.id === ticketId);
-    simulateAI(ticketId, [
-      { msg: "Retour d'intervention reçu — travaux terminés", type: "action" },
-      { msg: `Notification envoyée à ${ticket?.locataire.nom} pour validation`, type: "message_sent" },
-    ]);
-  }, [update, tickets, simulateAI]);
-
-  const validateIntervention = useCallback((ticketId: string) => {
-    const ticket = tickets.find(t => t.id === ticketId);
-    const artisan = artisans.find(a => a.id === ticket?.artisanId);
-    const quote = ticket?.quotes.find(q => q.selected);
-    simulateAI(ticketId, [
-      { msg: `✅ Intervention validée par ${ticket?.locataire.nom}`, type: "validation" },
-      { msg: "Passage à l'étape Facturation", type: "action" },
-    ], () => {
-      update(ticketId, {
-        status: "facturation", interventionValidee: true,
-        facture: {
-          montant: quote?.montant || 0, payee: false,
-          refFacture: `FAC-2026-${String(Math.floor(Math.random() * 9999)).padStart(4, "0")}`,
-          dateFacture: new Date().toISOString().slice(0, 10),
-          prestation: quote?.description || "",
-        },
+        { msg: "❌ L'artisan n'est pas intervenu — retour à l'étape Intervention", type: "notification" },
+      ], () => {
+        update(ticketId, { status: "intervention", passageConfirme: false });
       });
-    });
-  }, [tickets, artisans, simulateAI, update]);
+    }
+  }, [tickets, simulateAI, update]);
 
   const validateFacture = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -343,6 +311,62 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, [tickets, simulateAI]);
 
+  const contactSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket || !ticket.syndic) return;
+    simulateAI(ticketId, [
+      { msg: `Mail envoyé au syndic ${ticket.syndic.nom} (${ticket.syndic.email})`, type: "message_sent" },
+      { msg: `Objet : Signalement incident parties communes — ${ticket.bien.adresse}`, type: "message_sent" },
+      { msg: `Description : ${ticket.description.slice(0, 80)}…`, type: "message_sent" },
+      { msg: "En attente de réponse du syndic…", type: "notification" },
+    ], () => {
+      update(ticketId, { status: "relance_syndic", syndicRelances: [] });
+    });
+  }, [tickets, simulateAI, update]);
+
+  const relanceSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket || !ticket.syndic) return;
+    const relances = ticket.syndicRelances || [];
+    const numero = relances.length + 1;
+    const date = new Date().toISOString().slice(0, 10);
+    const isEscalade = numero >= 3;
+    simulateAI(ticketId, [
+      { msg: `Relance automatique #${numero} envoyée à ${ticket.syndic.nom} le ${date}`, type: "message_sent" },
+      { msg: numero >= 2 ? "Toujours sans réponse du syndic" : "En attente de réponse…", type: "notification" },
+      ...(isEscalade ? [{ msg: "Seuil de relances atteint — passage en escalade", type: "action" as const }] : []),
+    ], () => {
+      if (isEscalade) {
+        update(ticketId, { status: "escalade_syndic", syndicRelances: [...relances, { date, numero }], syndicEscalade: true });
+      } else {
+        update(ticketId, { syndicRelances: [...relances, { date, numero }] });
+      }
+    });
+  }, [tickets, simulateAI, update]);
+
+  const escaladeSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    simulateAI(ticketId, [
+      { msg: "Escalade : recommandation de mise en demeure", type: "action" },
+      { msg: `Projet de mise en demeure généré pour ${ticket.syndic?.nom}`, type: "action" },
+    ], () => {
+      update(ticketId, { syndicEscalade: true });
+    });
+  }, [tickets, simulateAI, update]);
+
+  const resolveSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    simulateAI(ticketId, [
+      { msg: `Le syndic ${ticket.syndic?.nom} a répondu / est intervenu`, type: "validation" },
+      { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
+      { msg: "Passage à la clôture", type: "action" },
+    ], () => {
+      update(ticketId, { status: "cloture" });
+    });
+  }, [tickets, simulateAI, update]);
+
   const addMessage = useCallback((ticketId: string, artisanId: string, content: string, from: "agence" | "artisan") => {
     const msg: TicketMessage = { id: `msg-${Date.now()}`, from, content, timestamp: new Date().toISOString() };
     setTickets(prev => prev.map(t => t.id === ticketId ? {
@@ -358,9 +382,10 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       tickets, artisans, journalEntries, showJournal, activeTicketId,
       setShowJournal, setActiveTicketId,
       createTicket, updateTicket: update, qualifyTicket, sendArtisanContact,
-      addQuote, selectQuoteAndAdvance, validateQuote, ownerRespond,
-      setDisponibilites, matchAndConfirm, startIntervention, completeIntervention,
-      validateIntervention, validateFacture, closeTicket, addMessage,
+      receiveQuote, validateQuote, ownerRespond,
+      confirmPassage, validateFacture, closeTicket,
+      contactSyndic, relanceSyndic, escaladeSyndic, resolveSyndic,
+      addMessage,
       getTicket, getArtisan,
     }}>
       {children}

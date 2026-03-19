@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ClipboardList, AlertTriangle, Wrench, UserCheck,
-  Calendar, HardHat, Receipt, Shield, BookOpen, PlusCircle, Archive,
+  HardHat, Receipt, BookOpen, PlusCircle, Archive, CheckCircle2, Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -16,17 +16,18 @@ const mainItems = [
 ];
 
 const workflowItems = [
-  { title: "Qualification", url: "/qualification", icon: AlertTriangle },
-  { title: "Artisans", url: "/artisans", icon: Wrench },
-  { title: "Validation proprio.", url: "/validation", icon: UserCheck },
-  { title: "Planification", url: "/planification", icon: Calendar },
+  { title: "Diagnostic", url: "/qualification", icon: AlertTriangle },
+  { title: "Contact artisan", url: "/artisans", icon: Wrench },
+  { title: "Accord proprio.", url: "/validation", icon: UserCheck },
   { title: "Interventions", url: "/interventions", icon: HardHat },
+  { title: "Confirmation", url: "/confirmation", icon: CheckCircle2 },
   { title: "Facturation", url: "/facturation", icon: Receipt },
   { title: "Clôture", url: "/cloture", icon: Archive },
 ];
 
 const guideItems = [
   { title: "Guide de démo", url: "/guide", icon: BookOpen },
+  { title: "Paramètres", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -75,7 +76,7 @@ export function AppSidebar() {
           <SidebarGroupContent>{renderItems(mainItems)}</SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Workflow</SidebarGroupLabel>
+          <SidebarGroupLabel>Parcours</SidebarGroupLabel>
           <SidebarGroupContent>{renderItems(workflowItems)}</SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>

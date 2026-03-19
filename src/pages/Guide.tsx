@@ -19,26 +19,26 @@ export default function Guide() {
           <div className="space-y-3">
             <div className="bg-muted rounded-lg p-4">
               <p className="font-semibold mb-1">1. Accroche (2 min) — Dashboard</p>
-              <p className="text-muted-foreground">"Imaginez que c'est lundi matin. Vous ouvrez SinistreFlow et vous voyez immédiatement vos 6 tickets ouverts, dont 2 urgents. Pas besoin de chercher dans vos emails ou votre tableur."</p>
+              <p className="text-muted-foreground">"Imaginez que c'est lundi matin. Vous ouvrez SinistreFlow et vous voyez immédiatement vos 6 dossiers ouverts, dont 2 urgents. Pas besoin de chercher dans vos emails ou votre tableur."</p>
               <p className="mt-2 font-medium text-primary">→ Observer la réaction : hochement de tête, soupir de reconnaissance ?</p>
             </div>
 
             <div className="bg-muted rounded-lg p-4">
               <p className="font-semibold mb-1">2. Signalement (3 min) — Formulaire</p>
-              <p className="text-muted-foreground">"Un locataire vous appelle : fuite sous l'évier. En 30 secondes, vous créez le dossier. L'outil qualifie automatiquement : catégorie plomberie, priorité haute (risque dégât des eaux), et trouve 3 artisans disponibles."</p>
-              <p className="mt-2 font-medium text-primary">→ Mesurer l'intérêt pour l'automatisation de la qualification</p>
+              <p className="text-muted-foreground">"Un locataire vous appelle : fuite sous l'évier. En 30 secondes, vous créez le dossier. L'outil diagnostique automatiquement : catégorie plomberie, priorité haute (risque dégât des eaux), et trouve 3 artisans disponibles."</p>
+              <p className="mt-2 font-medium text-primary">→ Mesurer l'intérêt pour l'automatisation du diagnostic</p>
             </div>
 
             <div className="bg-muted rounded-lg p-4">
-              <p className="font-semibold mb-1">3. Workflow complet (5 min) — Détail ticket</p>
+              <p className="font-semibold mb-1">3. Parcours complet (5 min) — Détail ticket</p>
               <p className="text-muted-foreground">"Prenons un dossier en cours : la panne de chaudière. L'artisan est trouvé, le devis envoyé au propriétaire, le RDV fixé à lundi. Tout est suivi dans un seul endroit."</p>
               <p className="mt-2 font-medium text-primary">→ Identifier les étapes où ils perdent le plus de temps</p>
             </div>
 
             <div className="bg-muted rounded-lg p-4">
-              <p className="font-semibold mb-1">4. Points de douleur (3 min) — Validation + Artisans</p>
-              <p className="text-muted-foreground">"La validation propriétaire : en un clic, vous envoyez le devis. Relance automatique à 48h. Pour les artisans : votre carnet avec notes, disponibilité et historique."</p>
-              <p className="mt-2 font-medium text-primary">→ Confirmer que la validation proprio est bien le pain point #1</p>
+              <p className="font-semibold mb-1">4. Points de douleur (3 min) — Accord proprio. + Artisans</p>
+              <p className="text-muted-foreground">"L'accord propriétaire : en un clic, vous envoyez le devis. Relance automatique à 48h. Pour les artisans : votre carnet avec notes, disponibilité et historique."</p>
+              <p className="mt-2 font-medium text-primary">→ Confirmer que l'accord proprio est bien le pain point #1</p>
             </div>
 
             <div className="bg-muted rounded-lg p-4">
@@ -86,7 +86,7 @@ export default function Guide() {
             <h3 className="font-semibold mb-2 flex items-center gap-2"><Lightbulb className="h-4 w-4 text-accent" /> Valeur perçue & automatisation</h3>
             <ul className="space-y-1 text-muted-foreground list-disc ml-5">
               <li>"Si cet outil existait, par quelle fonctionnalité commenceriez-vous ?"</li>
-              <li>"La qualification automatique : est-ce que ça vous parle ? Avez-vous confiance ?"</li>
+              <li>"Le diagnostic automatique : est-ce que ça vous parle ? Avez-vous confiance ?"</li>
               <li>"Les relances automatiques aux propriétaires : gain de temps ou risque ?"</li>
               <li>"Qu'est-ce qui vous ferait gagner le plus de temps dans votre quotidien ?"</li>
               <li>"Seriez-vous prêt à changer d'outil pour ça ?"</li>
