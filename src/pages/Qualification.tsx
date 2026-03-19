@@ -12,9 +12,9 @@ export default function Qualification() {
   const filtered = tickets.filter(t => t.status === "signale");
   return (
     <div className="space-y-6 max-w-4xl">
-      <div><h1 className="text-xl font-bold">Qualification</h1><p className="text-sm text-muted-foreground">Analyse de responsabilité par l'agent IA</p></div>
+      <div><h1 className="text-xl font-bold">Diagnostic</h1><p className="text-sm text-muted-foreground">Analyse de responsabilité par l'agent IA</p></div>
       {filtered.length === 0 ? (
-        <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente de qualification</CardContent></Card>
+        <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente de diagnostic</CardContent></Card>
       ) : filtered.map(t => (
         <Card key={t.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-4 flex items-start justify-between">
@@ -27,7 +27,7 @@ export default function Qualification() {
               <p className="font-medium text-sm">{t.titre}</p>
               <p className="text-xs text-muted-foreground mt-1">{t.locataire.nom} · {categoryLabels[t.categorie]}</p>
             </div>
-            <Button onClick={() => qualifyTicket(t.id)} className="shrink-0"><Brain className="h-4 w-4 mr-2" /> Qualifier <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>
+            <Button onClick={() => qualifyTicket(t.id)} className="shrink-0"><Brain className="h-4 w-4 mr-2" /> Diagnostiquer <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>
           </CardContent>
         </Card>
       ))}

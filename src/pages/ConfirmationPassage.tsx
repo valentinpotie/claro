@@ -2,18 +2,18 @@ import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
 import { priorityLabels, priorityColors } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { HardHat, Calendar, MapPin } from "lucide-react";
+import { CheckCircle2, XCircle, HardHat, Calendar } from "lucide-react";
 
-export default function Interventions() {
-  const { tickets, updateTicket, getArtisan } = useTickets();
+export default function ConfirmationPassage() {
+  const { tickets, confirmPassage, getArtisan } = useTickets();
   const navigate = useNavigate();
-  const filtered = tickets.filter(t => t.status === "intervention");
+  const filtered = tickets.filter(t => t.status === "confirmation_passage");
   return (
     <div className="space-y-6 max-w-4xl">
-      <div><h1 className="text-xl font-bold">Interventions</h1><p className="text-sm text-muted-foreground">Suivi des interventions planifiées</p></div>
-      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucune intervention en cours</CardContent></Card> :
+      <div><h1 className="text-xl font-bold">Confirmation passage</h1><p className="text-sm text-muted-foreground">Confirmez si l'artisan est bien intervenu</p></div>
+      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun passage à confirmer</CardContent></Card> :
       filtered.map(t => {
         const artisan = t.artisanId ? getArtisan(t.artisanId) : null;
         return (
@@ -23,12 +23,12 @@ export default function Interventions() {
               <p className="font-medium text-sm">{t.titre}</p>
               <div className="flex gap-4 text-xs text-muted-foreground mt-1">
                 <span className="flex items-center gap-1"><HardHat className="h-3 w-3" />{artisan?.nom}</span>
-                <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{t.bien.adresse}</span>
+                {t.dateInterventionPrevue && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Prévu le {t.dateInterventionPrevue}</span>}
               </div>
             </div>
-            <div className="flex flex-col gap-2 shrink-0 ml-4 items-end">
-              <label className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />Date prévue</label>
-              <Input type="date" className="w-40 h-8 text-xs" value={t.dateInterventionPrevue || ""} onChange={e => updateTicket(t.id, { dateInterventionPrevue: e.target.value })} />
+            <div className="flex gap-2 shrink-0 ml-4">
+              <Button size="sm" className="bg-success hover:bg-success/90" onClick={() => confirmPassage(t.id, true)}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Oui</Button>
+              <Button size="sm" variant="destructive" onClick={() => confirmPassage(t.id, false)}><XCircle className="h-3.5 w-3.5 mr-1" /> Non</Button>
             </div>
           </CardContent></Card>
         );

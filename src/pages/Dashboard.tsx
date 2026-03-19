@@ -14,7 +14,7 @@ export default function Dashboard() {
   const clotures = tickets.filter(t => t.status === "cloture").length;
   const statusCounts = workflowSteps.map(s => ({ ...s, count: tickets.filter(t => t.status === s.key).length }));
   const recentTickets = [...tickets].sort((a, b) => b.dateMaj.localeCompare(a.dateMaj)).slice(0, 5);
-  const routeMap: Record<string, string> = { signale: "/qualification", qualifie: "/qualification", recherche_artisan: "/artisans", validation_proprio: "/validation", planifie: "/planification", intervention: "/interventions", facturation: "/facturation", cloture: "/cloture" };
+  const routeMap: Record<string, string> = { signale: "/qualification", qualifie: "/qualification", contact_artisan: "/artisans", reception_devis: "/artisans", validation_proprio: "/validation", intervention: "/interventions", confirmation_passage: "/confirmation", facturation: "/facturation", cloture: "/cloture" };
   return (
     <div className="space-y-6 max-w-5xl">
       <h1 className="text-xl font-bold">Tableau de bord</h1>

@@ -232,9 +232,9 @@ const Landing = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
               { icon: FileText, title: "Centralisation", desc: "Toutes les demandes arrivent dans un seul espace, structurées dès la réception." },
-              { icon: Zap, title: "Qualification intelligente", desc: "La plateforme catégorise l'incident, score l'urgence et estime la responsabilité probable." },
+              { icon: Zap, title: "Diagnostic intelligent", desc: "La plateforme catégorise l'incident, évalue l'urgence et estime la responsabilité probable." },
               { icon: Wrench, title: "Routing artisans", desc: "Le bon artisan est identifié automatiquement selon le type d'incident et la localisation." },
-              { icon: CheckCircle, title: "Validation propriétaire", desc: "Les devis sont envoyés automatiquement pour validation. Vous suivez les retours en temps réel." },
+              { icon: CheckCircle, title: "Accord propriétaire", desc: "Les devis sont envoyés automatiquement pour accord. Vous suivez les retours en temps réel." },
               { icon: BarChart3, title: "Suivi complet", desc: "Chaque dossier est traçable de la demande initiale à la clôture." },
               { icon: Shield, title: "Gestion assurance", desc: "Identification automatique des sinistres éligibles et constitution du dossier." },
             ].map((item) => (
@@ -262,7 +262,7 @@ const Landing = () => {
           <div className="max-w-4xl mx-auto grid md:grid-cols-4 gap-8">
             {[
               { step: "01", title: "Signalement", desc: "Le locataire déclare son problème via un formulaire guidé avec photos." },
-              { step: "02", title: "Qualification", desc: "La plateforme qualifie, score l'urgence et prédit la responsabilité." },
+              { step: "02", title: "Diagnostic", desc: "La plateforme diagnostique le problème, évalue l'urgence et identifie la responsabilité." },
               { step: "03", title: "Pilotage", desc: "Vous validez, contactez l'artisan et obtenez l'accord du propriétaire." },
               { step: "04", title: "Clôture", desc: "Intervention réalisée, facture intégrée, dossier clôturé proprement." },
             ].map((item, i) => (
