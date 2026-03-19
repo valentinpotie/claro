@@ -62,34 +62,25 @@ export default function TicketDetail() {
             </div>
           )}
           <div className="overflow-x-auto">
-            {/* Circles + connectors row */}
-            <div className="flex items-center">
+            <div className="flex items-start">
               {displaySteps.map((step, i) => {
                 const isCompleted = i < currentStepIndex;
                 const isCurrent = i === currentStepIndex;
                 return (
                   <div key={step.key} className="flex items-center flex-1 min-w-0">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
-                      isCompleted
-                        ? (isSyndic ? syndicCompletedColor : "bg-success text-success-foreground")
-                        : isCurrent
-                          ? (isSyndic ? syndicStepColor : "bg-primary text-primary-foreground")
-                          : "bg-muted text-muted-foreground"
-                    }`}>
-                      {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                    <div className="flex flex-col items-center" style={{ minWidth: 48 }}>
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                        isCompleted
+                          ? (isSyndic ? syndicCompletedColor : "bg-success text-success-foreground")
+                          : isCurrent
+                            ? (isSyndic ? syndicStepColor : "bg-primary text-primary-foreground")
+                            : "bg-muted text-muted-foreground"
+                      }`}>
+                        {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                      </div>
+                      <span className={`text-[10px] mt-1.5 whitespace-nowrap ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</span>
                     </div>
-                    {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
-                  </div>
-                );
-              })}
-            </div>
-            {/* Labels row */}
-            <div className="flex mt-1.5">
-              {displaySteps.map((step, i) => {
-                const isCurrent = i === currentStepIndex;
-                return (
-                  <div key={step.key} className="flex-1 min-w-0">
-                    <p className={`text-[10px] text-center truncate ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</p>
+                    {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 mt-4 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
                   </div>
                 );
               })}
@@ -102,36 +93,34 @@ export default function TicketDetail() {
         {/* Main content */}
         <div className="lg:col-span-2 space-y-4">
           {/* Description + Mail source */}
-          <Card className="border-0 shadow-sm">
-            <Tabs defaultValue="description">
-              <CardHeader className="pb-2">
-                <TabsList className="h-8">
-                  <TabsTrigger value="description" className="text-xs">Description</TabsTrigger>
-                  {ticket.mailSource && <TabsTrigger value="mail" className="text-xs">Mail source</TabsTrigger>}
-                </TabsList>
-              </CardHeader>
-              <CardContent>
+          <Tabs defaultValue="description">
+            <TabsList className="h-8 bg-transparent p-0 gap-1">
+              <TabsTrigger value="description" className="text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-md border border-b-0 border-transparent data-[state=active]:border-border px-4">Description</TabsTrigger>
+              {ticket.mailSource && <TabsTrigger value="mail" className="text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-md border border-b-0 border-transparent data-[state=active]:border-border px-4">Mail source</TabsTrigger>}
+            </TabsList>
+            <Card className="border-0 shadow-sm rounded-tl-none">
+              <CardContent className="p-4">
                 <TabsContent value="description" className="mt-0">
-                  <p className="text-sm">{ticket.description}</p>
-                  <Badge variant="secondary" className="mt-2">{categoryLabels[ticket.categorie]}</Badge>
+                  <p className="text-sm leading-relaxed">{ticket.description}</p>
+                  <Badge variant="secondary" className="mt-3">{categoryLabels[ticket.categorie]}</Badge>
                 </TabsContent>
                 {ticket.mailSource && (
                   <TabsContent value="mail" className="mt-0">
-                    <div className="border-l-4 border-muted-foreground/20 pl-4 space-y-2 text-sm">
-                      <div className="space-y-1 text-xs">
-                        <p><span className="text-muted-foreground font-medium">De :</span> {ticket.mailSource.from}</p>
-                        <p><span className="text-muted-foreground font-medium">À :</span> {ticket.mailSource.to}</p>
-                        <p><span className="text-muted-foreground font-medium">Objet :</span> <span className="font-medium">{ticket.mailSource.subject}</span></p>
-                        <p><span className="text-muted-foreground font-medium">Reçu le :</span> {new Date(ticket.mailSource.receivedAt).toLocaleString("fr-FR")}</p>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                        <span className="text-muted-foreground font-medium">De</span><span>{ticket.mailSource.from}</span>
+                        <span className="text-muted-foreground font-medium">À</span><span>{ticket.mailSource.to}</span>
+                        <span className="text-muted-foreground font-medium">Objet</span><span className="font-medium">{ticket.mailSource.subject}</span>
+                        <span className="text-muted-foreground font-medium">Reçu</span><span>{new Date(ticket.mailSource.receivedAt).toLocaleString("fr-FR")}</span>
                       </div>
                       <Separator />
-                      <div className="whitespace-pre-line text-sm leading-relaxed">{ticket.mailSource.body}</div>
+                      <div className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{ticket.mailSource.body}</div>
                     </div>
                   </TabsContent>
                 )}
               </CardContent>
-            </Tabs>
-          </Card>
+            </Card>
+          </Tabs>
 
           {/* Signalement -> Diagnostic */}
           {ticket.status === "signale" && (
