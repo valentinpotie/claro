@@ -18,7 +18,7 @@ const mainItems = [
 const workflowItems = [
   { title: "Diagnostic", url: "/qualification", icon: AlertTriangle },
   { title: "Contact artisan", url: "/artisans", icon: Wrench },
-  { title: "Accord proprio.", url: "/validation", icon: UserCheck },
+  { title: "Accord propriétaire", url: "/validation", icon: UserCheck },
   { title: "Interventions", url: "/interventions", icon: HardHat },
   { title: "Confirmation", url: "/confirmation", icon: CheckCircle2 },
   { title: "Facturation", url: "/facturation", icon: Receipt },

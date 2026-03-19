@@ -61,13 +61,14 @@ export default function TicketDetail() {
               <Building2 className="h-3.5 w-3.5" /> Parcours Syndic
             </div>
           )}
-          <div className="flex items-center justify-between overflow-x-auto">
-            {displaySteps.map((step, i) => {
-              const isCompleted = i < currentStepIndex;
-              const isCurrent = i === currentStepIndex;
-              return (
-                <div key={step.key} className="flex items-center flex-1 min-w-0">
-                  <div className="flex flex-col items-center">
+          <div className="overflow-x-auto">
+            {/* Circles + connectors row */}
+            <div className="flex items-center">
+              {displaySteps.map((step, i) => {
+                const isCompleted = i < currentStepIndex;
+                const isCurrent = i === currentStepIndex;
+                return (
+                  <div key={step.key} className="flex items-center flex-1 min-w-0">
                     <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
                       isCompleted
                         ? (isSyndic ? syndicCompletedColor : "bg-success text-success-foreground")
@@ -77,12 +78,22 @@ export default function TicketDetail() {
                     }`}>
                       {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
                     </div>
-                    <span className={`text-[10px] mt-1 whitespace-nowrap ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</span>
+                    {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
                   </div>
-                  {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            {/* Labels row */}
+            <div className="flex mt-1.5">
+              {displaySteps.map((step, i) => {
+                const isCurrent = i === currentStepIndex;
+                return (
+                  <div key={step.key} className="flex-1 min-w-0">
+                    <p className={`text-[10px] text-center truncate ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </CardContent>
       </Card>
