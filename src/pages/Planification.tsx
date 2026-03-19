@@ -16,7 +16,7 @@ export default function Planification() {
   const [activeTicket, setActiveTicket] = useState<string | null>(null);
   return (
     <div className="space-y-6 max-w-5xl">
-      <div><h1 className="text-xl font-bold">Planification</h1><p className="text-sm text-muted-foreground">Synchronisation automatique artisan / locataire</p></div>
+      <div><h1 className="text-xl font-bold">Rendez-vous artisan</h1><p className="text-sm text-muted-foreground">Synchronisation automatique artisan / locataire</p></div>
       {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente</CardContent></Card> :
       filtered.map(t => {
         const artisan = t.artisanId ? getArtisan(t.artisanId) : null;

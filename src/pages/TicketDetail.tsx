@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { statusLabels, statusColors, priorityColors, priorityLabels, categoryLabels, workflowSteps, responsabiliteLabels } from "@/data/types";
+import { statusLabels, statusColors, priorityColors, priorityLabels, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { MessageThread } from "@/components/MessageThread";
 import {
   ArrowLeft, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
-  AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Shield
+  AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Shield, Building2, RefreshCw, Gavel
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -23,10 +23,15 @@ export default function TicketDetail() {
 
   if (!ticket) return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Ticket introuvable</p></div>;
 
-  const displaySteps = workflowSteps.filter(s => s.key !== "qualifie");
+  const isSyndic = ticket.responsabilite === "syndic";
+  const displaySteps = isSyndic
+    ? syndicWorkflowSteps.filter(s => s.key !== "qualifie")
+    : workflowSteps.filter(s => s.key !== "qualifie");
   const currentStepIndex = displaySteps.findIndex(s => s.key === ticket.status);
   const selectedQuote = ticket.quotes.find(q => q.id === ticket.selectedQuoteId);
   const artisan = ticket.artisanId ? ctx.getArtisan(ticket.artisanId) : null;
+  const syndicStepColor = "bg-orange-500 text-white";
+  const syndicCompletedColor = "bg-orange-400 text-white";
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -49,8 +54,13 @@ export default function TicketDetail() {
       </div>
 
       {/* Workflow stepper */}
-      <Card className="border-0 shadow-sm">
+      <Card className={`border-0 shadow-sm ${isSyndic ? "ring-1 ring-orange-200" : ""}`}>
         <CardContent className="p-4">
+          {isSyndic && (
+            <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-orange-700">
+              <Building2 className="h-3.5 w-3.5" /> Parcours Syndic
+            </div>
+          )}
           <div className="flex items-center justify-between overflow-x-auto">
             {displaySteps.map((step, i) => {
               const isCompleted = i < currentStepIndex;
@@ -58,12 +68,18 @@ export default function TicketDetail() {
               return (
                 <div key={step.key} className="flex items-center flex-1 min-w-0">
                   <div className="flex flex-col items-center">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${isCompleted ? "bg-success text-success-foreground" : isCurrent ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                      isCompleted
+                        ? (isSyndic ? syndicCompletedColor : "bg-success text-success-foreground")
+                        : isCurrent
+                          ? (isSyndic ? syndicStepColor : "bg-primary text-primary-foreground")
+                          : "bg-muted text-muted-foreground"
+                    }`}>
                       {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
                     </div>
-                    <span className={`text-[10px] mt-1 whitespace-nowrap ${isCurrent ? "font-semibold text-primary" : "text-muted-foreground"}`}>{step.label}</span>
+                    <span className={`text-[10px] mt-1 whitespace-nowrap ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</span>
                   </div>
-                  {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 ${isCompleted ? "bg-success" : "bg-border"}`} />}
+                  {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
                 </div>
               );
             })}
@@ -74,13 +90,36 @@ export default function TicketDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Description */}
+          {/* Description + Mail source */}
           <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-2"><CardTitle className="text-sm">Description</CardTitle></CardHeader>
-            <CardContent>
-              <p className="text-sm">{ticket.description}</p>
-              <Badge variant="secondary" className="mt-2">{categoryLabels[ticket.categorie]}</Badge>
-            </CardContent>
+            <Tabs defaultValue="description">
+              <CardHeader className="pb-2">
+                <TabsList className="h-8">
+                  <TabsTrigger value="description" className="text-xs">Description</TabsTrigger>
+                  {ticket.mailSource && <TabsTrigger value="mail" className="text-xs">Mail source</TabsTrigger>}
+                </TabsList>
+              </CardHeader>
+              <CardContent>
+                <TabsContent value="description" className="mt-0">
+                  <p className="text-sm">{ticket.description}</p>
+                  <Badge variant="secondary" className="mt-2">{categoryLabels[ticket.categorie]}</Badge>
+                </TabsContent>
+                {ticket.mailSource && (
+                  <TabsContent value="mail" className="mt-0">
+                    <div className="border-l-4 border-muted-foreground/20 pl-4 space-y-2 text-sm">
+                      <div className="space-y-1 text-xs">
+                        <p><span className="text-muted-foreground font-medium">De :</span> {ticket.mailSource.from}</p>
+                        <p><span className="text-muted-foreground font-medium">À :</span> {ticket.mailSource.to}</p>
+                        <p><span className="text-muted-foreground font-medium">Objet :</span> <span className="font-medium">{ticket.mailSource.subject}</span></p>
+                        <p><span className="text-muted-foreground font-medium">Reçu le :</span> {new Date(ticket.mailSource.receivedAt).toLocaleString("fr-FR")}</p>
+                      </div>
+                      <Separator />
+                      <div className="whitespace-pre-line text-sm leading-relaxed">{ticket.mailSource.body}</div>
+                    </div>
+                  </TabsContent>
+                )}
+              </CardContent>
+            </Tabs>
           </Card>
 
           {/* Signalement -> Diagnostic */}
@@ -347,6 +386,87 @@ export default function TicketDetail() {
             </Card>
           )}
 
+          {/* === SYNDIC WORKFLOW === */}
+
+          {/* Contact syndic */}
+          {ticket.status === "contact_syndic" && ticket.syndic && (
+            <Card className="border-0 shadow-sm border-l-4 border-l-orange-400">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4 text-orange-600" /> Contact syndic</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg text-sm space-y-1">
+                  <p className="font-medium">{ticket.syndic.nom}</p>
+                  <p className="text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> {ticket.syndic.email}</p>
+                  <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> {ticket.syndic.telephone}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">L'IA va envoyer un mail au syndic avec la description du problème.</p>
+                <Button onClick={() => ctx.contactSyndic(ticket.id)} className="w-full bg-orange-600 hover:bg-orange-700">
+                  <Send className="h-4 w-4 mr-2" /> Envoyer au syndic
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Relance syndic */}
+          {ticket.status === "relance_syndic" && ticket.syndic && (
+            <Card className="border-0 shadow-sm border-l-4 border-l-orange-400">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><RefreshCw className="h-4 w-4 text-orange-600" /> Relance syndic</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg text-sm">
+                  <p className="font-medium">{ticket.syndic.nom}</p>
+                  <p className="text-xs text-muted-foreground mt-1">En attente de réponse depuis le {ticket.dateCreation}</p>
+                </div>
+                {ticket.syndicRelances && ticket.syndicRelances.length > 0 && (
+                  <div className="space-y-1.5">
+                    {ticket.syndicRelances.map((r, i) => (
+                      <Badge key={i} variant="outline" className="text-[10px] border-0 bg-orange-100 text-orange-700 mr-1">
+                        Relancé automatiquement le {r.date} (#{r.numero})
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <Button onClick={() => ctx.relanceSyndic(ticket.id)} className="flex-1 bg-orange-600 hover:bg-orange-700">
+                    <RefreshCw className="h-4 w-4 mr-2" /> Relancer le syndic
+                  </Button>
+                  <Button onClick={() => ctx.resolveSyndic(ticket.id)} variant="outline" className="flex-1">
+                    <CheckCircle2 className="h-4 w-4 mr-2" /> Syndic a répondu
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Escalade syndic */}
+          {ticket.status === "escalade_syndic" && ticket.syndic && (
+            <Card className="border-0 shadow-sm border-l-4 border-l-red-500">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Gavel className="h-4 w-4 text-red-600" /> Escalade syndic</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <Badge className="bg-red-100 text-red-700 border-0">Escalade : recommandation de mise en demeure</Badge>
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-lg text-sm space-y-1">
+                  <p className="font-medium">{ticket.syndic.nom} — aucune réponse</p>
+                  <p className="text-xs text-muted-foreground">{ticket.syndicRelances?.length || 0} relances envoyées sans réponse</p>
+                </div>
+                {ticket.syndicRelances && ticket.syndicRelances.length > 0 && (
+                  <div className="space-y-1.5">
+                    {ticket.syndicRelances.map((r, i) => (
+                      <Badge key={i} variant="outline" className="text-[10px] border-0 bg-orange-100 text-orange-700 mr-1">
+                        Relance #{r.numero} le {r.date} — sans réponse
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <Button onClick={() => ctx.escaladeSyndic(ticket.id)} variant="destructive" className="flex-1">
+                    <Gavel className="h-4 w-4 mr-2" /> Générer une mise en demeure
+                  </Button>
+                  <Button onClick={() => ctx.resolveSyndic(ticket.id)} variant="outline" className="flex-1">
+                    <CheckCircle2 className="h-4 w-4 mr-2" /> Syndic a répondu
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Notes */}
           {ticket.notes.length > 0 && (
             <Card className="border-0 shadow-sm">
@@ -384,6 +504,24 @@ export default function TicketDetail() {
                     <span className="text-muted-foreground">Urgence</span>
                     <Badge className="bg-destructive text-destructive-foreground text-[10px]">Oui</Badge>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {ticket.syndic && (
+            <Card className="border-0 shadow-sm bg-orange-50 dark:bg-orange-950/20">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4 text-orange-600" /> Syndic</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p className="font-medium">{ticket.syndic.nom}</p>
+                <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-3.5 w-3.5" />{ticket.syndic.telephone}</div>
+                <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3.5 w-3.5" />{ticket.syndic.email}</div>
+                {ticket.syndicRelances && ticket.syndicRelances.length > 0 && (
+                  <>
+                    <Separator />
+                    <p className="text-xs text-muted-foreground">{ticket.syndicRelances.length} relance(s) envoyée(s)</p>
+                    {ticket.syndicEscalade && <Badge className="bg-red-100 text-red-700 border-0 text-[10px]">Escalade en cours</Badge>}
+                  </>
                 )}
               </CardContent>
             </Card>

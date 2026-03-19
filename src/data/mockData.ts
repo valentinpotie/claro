@@ -18,6 +18,7 @@ export const initialTickets: Ticket[] = [
     locataire: { nom: "Marie Dupont", telephone: "06 12 34 56 78", email: "m.dupont@email.fr" },
     bien: { adresse: "12 rue des Lilas, 75011 Paris", lot: "Apt 3B", proprietaire: "Jean-Pierre Martin", telephoneProprio: "06 98 76 54 32", emailProprio: "jp.martin@email.fr" },
     quotes: [], messages: {}, photos: [], notes: ["Locataire a mis une bassine en attendant"],
+    mailSource: { from: "m.dupont@email.fr", to: "travaux@agence-durand.fr", subject: "Urgence fuite eau cuisine", receivedAt: "2026-03-05T08:12:00", body: "Bonjour,\n\nJe vous écris car j'ai une fuite d'eau sous l'évier de ma cuisine depuis hier soir. L'eau coule en permanence et commence à abîmer le parquet. J'ai mis une bassine mais ça déborde régulièrement.\n\nPouvez-vous envoyer un plombier rapidement ?\n\nMerci,\nMarie Dupont\n12 rue des Lilas, Apt 3B\nTél : 06 12 34 56 78" },
   },
   {
     id: "2", reference: "SIN-2026-0141", titre: "Panne chaudière - plus d'eau chaude",
@@ -34,6 +35,7 @@ export const initialTickets: Ticket[] = [
         { id: "m2", from: "artisan", content: "Bonjour, oui nous pouvons nous déplacer. Je passe demain matin pour le diagnostic.", timestamp: "2026-03-07T10:30:00" },
       ]
     },
+    mailSource: { from: "a.benali@email.fr", to: "travaux@agence-durand.fr", subject: "Plus d'eau chaude depuis 2 jours", receivedAt: "2026-03-04T14:22:00", body: "Bonjour,\n\nDepuis avant-hier soir, nous n'avons plus d'eau chaude dans l'appartement. La chaudière (Saunier Duval, installée en 2019) semble fonctionner pour le chauffage mais ne produit plus d'eau chaude.\n\nNous sommes 4 dans l'appartement, c'est vraiment urgent.\n\nMerci de votre aide,\nAhmed Benali\n8 avenue Foch, Apt 5A, Lyon 6ème\nTél : 06 45 67 89 01" },
     photos: [], notes: ["Chaudière Saunier Duval, modèle 2019"],
   },
   {
@@ -111,5 +113,22 @@ export const initialTickets: Ticket[] = [
     facture: { montant: 1800, payee: true, refFacture: "FAC-2026-0089", dateFacture: "2026-03-06", prestation: "Reprise étanchéité toiture" },
     factureValidee: true,
     messages: {}, photos: [], notes: ["Ticket clôturé - intervention réussie"],
+  },
+  {
+    id: "9", reference: "SIN-2026-0143", titre: "Badge Vigik défaillant — parties communes",
+    description: "Le badge Vigik de la résidence ne fonctionne plus depuis 8 jours. Les locataires doivent attendre qu'un voisin ouvre la porte pour entrer dans l'immeuble. Plusieurs locataires ont signalé le problème.",
+    status: "relance_syndic", priorite: "haute", categorie: "autre",
+    dateCreation: "2026-03-12", dateMaj: "2026-03-20", urgence: false,
+    locataire: { nom: "Pierre Lambert", telephone: "06 89 01 23 45", email: "p.lambert@email.fr" },
+    bien: { adresse: "Résidence Les Oliviers, 15 avenue des Platanes, 31000 Toulouse", lot: "Parties communes", proprietaire: "SCI Les Oliviers", telephoneProprio: "05 61 98 76 54", emailProprio: "sci.oliviers@email.fr" },
+    responsabilite: "syndic",
+    syndic: { nom: "Foncia Toulouse", email: "toulouse@foncia.fr", telephone: "05 61 45 67 89" },
+    syndicRelances: [
+      { date: "2026-03-14", numero: 1 },
+      { date: "2026-03-19", numero: 2 },
+    ],
+    quotes: [], messages: {}, photos: [],
+    notes: ["Signalé par 3 locataires", "Syndic contacté le 12/03", "Relance #1 le 14/03 — sans réponse", "Relance #2 le 19/03 — toujours sans réponse"],
+    mailSource: { from: "p.lambert@email.fr", to: "travaux@agence-durand.fr", subject: "Badge Vigik HS depuis 1 semaine", receivedAt: "2026-03-12T09:30:00", body: "Bonjour,\n\nLe badge Vigik de la résidence Les Oliviers ne fonctionne plus depuis environ une semaine. Impossible d'entrer dans l'immeuble sans qu'un voisin nous ouvre.\n\nPlusieurs locataires se plaignent. C'est un problème de parties communes, je suppose que ça relève du syndic ?\n\nMerci de faire le nécessaire.\n\nPierre Lambert\nRésidence Les Oliviers, 15 avenue des Platanes\nTél : 06 89 01 23 45" },
   },
 ];

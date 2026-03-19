@@ -11,7 +11,7 @@ interface TicketContextType {
   activeTicketId: string | null;
   setShowJournal: (v: boolean) => void;
   setActiveTicketId: (v: string | null) => void;
-  createTicket: (data: { titre: string; description: string; categorie: TicketCategory; priorite: TicketPriority; urgence: boolean; locataireNom: string; locataireTel: string; locataireEmail: string; adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string }) => Ticket;
+  createTicket: (data: { titre: string; description: string; categorie: TicketCategory; priorite: TicketPriority; urgence: boolean; locataireNom: string; locataireTel: string; locataireEmail: string; adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string; mailSource?: { from: string; to: string; subject: string; body: string; receivedAt: string } }) => Ticket;
   updateTicket: (id: string, data: Partial<Ticket>) => void;
   qualifyTicket: (id: string) => void;
   sendArtisanContact: (ticketId: string, artisanId: string) => void;
@@ -21,6 +21,10 @@ interface TicketContextType {
   confirmPassage: (ticketId: string, confirmed: boolean) => void;
   validateFacture: (ticketId: string) => void;
   closeTicket: (ticketId: string) => void;
+  contactSyndic: (ticketId: string) => void;
+  relanceSyndic: (ticketId: string) => void;
+  escaladeSyndic: (ticketId: string) => void;
+  resolveSyndic: (ticketId: string) => void;
   addMessage: (ticketId: string, artisanId: string, content: string, from: "agence" | "artisan") => void;
   getTicket: (id: string) => Ticket | undefined;
   getArtisan: (id: string) => Artisan | undefined;
@@ -79,6 +83,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       bien: { adresse: data.adresse, lot: data.lot, proprietaire: data.proprietaire, telephoneProprio: data.telephoneProprio, emailProprio: data.emailProprio },
       quotes: [], messages: {},
       photos: [], notes: [],
+      mailSource: data.mailSource,
     };
     setTickets(prev => [ticket, ...prev]);
     simulateAI(id, [
@@ -91,17 +96,31 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
   const qualifyTicket = useCallback((id: string) => {
     const ticket = tickets.find(t => t.id === id);
     if (!ticket) return;
-    const resp = ticket.categorie === "autre" ? "partagee" : (["plomberie", "electricite", "chauffage", "toiture", "humidite"].includes(ticket.categorie) ? "proprietaire" : "locataire");
-    simulateAI(id, [
-      { msg: "Analyse du signalement en cours…", type: "analysis" },
-      { msg: `Description analysée : "${ticket.description.slice(0, 60)}…"`, type: "analysis" },
-      { msg: `Catégorie détectée : ${ticket.categorie}`, type: "analysis" },
-      { msg: `Analyse de responsabilité : ${resp === "proprietaire" ? "Propriétaire" : resp === "locataire" ? "Locataire" : "Partagée"}`, type: "analysis" },
-      { msg: "Diagnostic terminé → Orientation : Réparation/Entretien", type: "action" },
-      { msg: "Passage à l'étape Contact artisan", type: "action" },
-    ], () => {
-      update(id, { status: "contact_artisan", responsabilite: resp as Responsabilite });
-    });
+    const isSyndic = ticket.responsabilite === "syndic" || ticket.syndic != null;
+    const resp = isSyndic ? "syndic" : (ticket.categorie === "autre" ? "partagee" : (["plomberie", "electricite", "chauffage", "toiture", "humidite"].includes(ticket.categorie) ? "proprietaire" : "locataire"));
+    if (resp === "syndic") {
+      simulateAI(id, [
+        { msg: "Analyse du signalement en cours…", type: "analysis" },
+        { msg: `Description analysée : "${ticket.description.slice(0, 60)}…"`, type: "analysis" },
+        { msg: "Parties communes détectées → Responsabilité : Syndic", type: "analysis" },
+        { msg: `Syndic identifié : ${ticket.syndic?.nom || "À renseigner"}`, type: "analysis" },
+        { msg: "Diagnostic terminé → Parcours Syndic activé", type: "action" },
+        { msg: "Passage à l'étape Contact syndic", type: "action" },
+      ], () => {
+        update(id, { status: "contact_syndic", responsabilite: "syndic" });
+      });
+    } else {
+      simulateAI(id, [
+        { msg: "Analyse du signalement en cours…", type: "analysis" },
+        { msg: `Description analysée : "${ticket.description.slice(0, 60)}…"`, type: "analysis" },
+        { msg: `Catégorie détectée : ${ticket.categorie}`, type: "analysis" },
+        { msg: `Analyse de responsabilité : ${resp === "proprietaire" ? "Propriétaire" : resp === "locataire" ? "Locataire" : "Partagée"}`, type: "analysis" },
+        { msg: "Diagnostic terminé → Orientation : Réparation/Entretien", type: "action" },
+        { msg: "Passage à l'étape Contact artisan", type: "action" },
+      ], () => {
+        update(id, { status: "contact_artisan", responsabilite: resp as Responsabilite });
+      });
+    }
   }, [tickets, simulateAI, update]);
 
   const sendArtisanContact = useCallback((ticketId: string, artisanId: string) => {
@@ -292,6 +311,62 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, [tickets, simulateAI]);
 
+  const contactSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket || !ticket.syndic) return;
+    simulateAI(ticketId, [
+      { msg: `Mail envoyé au syndic ${ticket.syndic.nom} (${ticket.syndic.email})`, type: "message_sent" },
+      { msg: `Objet : Signalement incident parties communes — ${ticket.bien.adresse}`, type: "message_sent" },
+      { msg: `Description : ${ticket.description.slice(0, 80)}…`, type: "message_sent" },
+      { msg: "En attente de réponse du syndic…", type: "notification" },
+    ], () => {
+      update(ticketId, { status: "relance_syndic", syndicRelances: [] });
+    });
+  }, [tickets, simulateAI, update]);
+
+  const relanceSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket || !ticket.syndic) return;
+    const relances = ticket.syndicRelances || [];
+    const numero = relances.length + 1;
+    const date = new Date().toISOString().slice(0, 10);
+    const isEscalade = numero >= 3;
+    simulateAI(ticketId, [
+      { msg: `Relance automatique #${numero} envoyée à ${ticket.syndic.nom} le ${date}`, type: "message_sent" },
+      { msg: numero >= 2 ? "Toujours sans réponse du syndic" : "En attente de réponse…", type: "notification" },
+      ...(isEscalade ? [{ msg: "Seuil de relances atteint — passage en escalade", type: "action" as const }] : []),
+    ], () => {
+      if (isEscalade) {
+        update(ticketId, { status: "escalade_syndic", syndicRelances: [...relances, { date, numero }], syndicEscalade: true });
+      } else {
+        update(ticketId, { syndicRelances: [...relances, { date, numero }] });
+      }
+    });
+  }, [tickets, simulateAI, update]);
+
+  const escaladeSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    simulateAI(ticketId, [
+      { msg: "Escalade : recommandation de mise en demeure", type: "action" },
+      { msg: `Projet de mise en demeure généré pour ${ticket.syndic?.nom}`, type: "action" },
+    ], () => {
+      update(ticketId, { syndicEscalade: true });
+    });
+  }, [tickets, simulateAI, update]);
+
+  const resolveSyndic = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    simulateAI(ticketId, [
+      { msg: `Le syndic ${ticket.syndic?.nom} a répondu / est intervenu`, type: "validation" },
+      { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
+      { msg: "Passage à la clôture", type: "action" },
+    ], () => {
+      update(ticketId, { status: "cloture" });
+    });
+  }, [tickets, simulateAI, update]);
+
   const addMessage = useCallback((ticketId: string, artisanId: string, content: string, from: "agence" | "artisan") => {
     const msg: TicketMessage = { id: `msg-${Date.now()}`, from, content, timestamp: new Date().toISOString() };
     setTickets(prev => prev.map(t => t.id === ticketId ? {
@@ -308,7 +383,9 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       setShowJournal, setActiveTicketId,
       createTicket, updateTicket: update, qualifyTicket, sendArtisanContact,
       receiveQuote, validateQuote, ownerRespond,
-      confirmPassage, validateFacture, closeTicket, addMessage,
+      confirmPassage, validateFacture, closeTicket,
+      contactSyndic, relanceSyndic, escaladeSyndic, resolveSyndic,
+      addMessage,
       getTicket, getArtisan,
     }}>
       {children}
