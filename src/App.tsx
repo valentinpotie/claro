@@ -11,7 +11,6 @@ import Dashboard from "./pages/Dashboard";
 import TicketsList from "./pages/TicketsList";
 import TicketDetail from "./pages/TicketDetail";
 import Signalement from "./pages/Signalement";
-import Qualification from "./pages/Qualification";
 import Artisans from "./pages/Artisans";
 import Validation from "./pages/Validation";
 import ConfirmationPassage from "./pages/ConfirmationPassage";
@@ -40,7 +39,6 @@ const App = () => (
             <Route path="/tickets" element={<AppLayout><TicketsList /></AppLayout>} />
             <Route path="/tickets/:id" element={<AppLayout><TicketDetail /></AppLayout>} />
             <Route path="/signalement" element={<AppLayout><Signalement /></AppLayout>} />
-            <Route path="/qualification" element={<AppLayout><Qualification /></AppLayout>} />
             <Route path="/artisans" element={<AppLayout><Artisans /></AppLayout>} />
             <Route path="/validation" element={<AppLayout><Validation /></AppLayout>} />
             <Route path="/confirmation" element={<AppLayout><ConfirmationPassage /></AppLayout>} />

@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, ClipboardList, AlertTriangle, Wrench, UserCheck,
+  LayoutDashboard, ClipboardList, Wrench, UserCheck,
   HardHat, Receipt, BookOpen, PlusCircle, Archive, CheckCircle2, Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -16,7 +16,6 @@ const mainItems = [
 ];
 
 const workflowItems = [
-  { title: "Diagnostic", url: "/qualification", icon: AlertTriangle },
   { title: "Contact artisan", url: "/artisans", icon: Wrench },
   { title: "Accord propriétaire", url: "/validation", icon: UserCheck },
   { title: "Interventions", url: "/interventions", icon: HardHat },

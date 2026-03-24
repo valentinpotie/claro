@@ -38,7 +38,7 @@ export function useTickets() {
   return ctx;
 }
 
-let ticketCounter = 9;
+let ticketCounter = 1;
 
 export function TicketProvider({ children }: { children: React.ReactNode }) {
   const { settings, needsOwnerApproval } = useSettings();
