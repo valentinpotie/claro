@@ -26,6 +26,7 @@ interface TicketContextType {
   escaladeSyndic: (ticketId: string) => void;
   resolveSyndic: (ticketId: string) => void;
   addMessage: (ticketId: string, artisanId: string, content: string, from: "agence" | "artisan") => void;
+  addArtisan: (data: Omit<Artisan, "id">) => void;
   getTicket: (id: string) => Ticket | undefined;
   getArtisan: (id: string) => Artisan | undefined;
 }
@@ -43,7 +44,7 @@ let ticketCounter = 1;
 export function TicketProvider({ children }: { children: React.ReactNode }) {
   const { settings, needsOwnerApproval } = useSettings();
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
-  const [artisans] = useState<Artisan[]>(initialArtisans);
+  const [artisans, setArtisans] = useState<Artisan[]>(initialArtisans);
   const [journalEntries, setJournalEntries] = useState<AIJournalEntry[]>([]);
   const [showJournal, setShowJournal] = useState(false);
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -129,7 +130,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     if (!artisan || !ticket) return;
     const msg: TicketMessage = {
       id: `msg-${Date.now()}`, from: "agence",
-      content: `Bonjour ${artisan.nom}, nous avons un problème de ${ticket.categorie} au ${ticket.bien.adresse}. Pouvez-vous vous déplacer pour faire un diagnostic sur place ? Merci.`,
+      content: `Bonjour ${artisan.nom},\n\nNous avons un problème de ${ticket.categorie} au ${ticket.bien.adresse}.\n\nCoordonnées du locataire :\n- Nom : ${ticket.locataire.nom}\n- Téléphone : ${ticket.locataire.telephone}\n- Email : ${ticket.locataire.email}\n\nPouvez-vous vous déplacer pour faire un diagnostic sur place ?\n\nMerci.`,
       timestamp: new Date().toISOString(),
     };
     setTickets(prev => prev.map(t => t.id === ticketId ? {
@@ -374,6 +375,11 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     } : t));
   }, []);
 
+  const addArtisan = useCallback((data: Omit<Artisan, "id">) => {
+    const id = `artisan-${Date.now()}`;
+    setArtisans(prev => [...prev, { id, ...data }]);
+  }, []);
+
   const getTicket = useCallback((id: string) => tickets.find(t => t.id === id), [tickets]);
   const getArtisan = useCallback((id: string) => artisans.find(a => a.id === id), [artisans]);
 
@@ -385,7 +391,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       receiveQuote, validateQuote, ownerRespond,
       confirmPassage, validateFacture, closeTicket,
       contactSyndic, relanceSyndic, escaladeSyndic, resolveSyndic,
-      addMessage,
+      addMessage, addArtisan,
       getTicket, getArtisan,
     }}>
       {children}

@@ -59,7 +59,7 @@ export function AppSidebar() {
               <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-sidebar-foreground">SinistreFlow</h2>
+              <h2 className="text-sm font-bold text-sidebar-foreground">Claro</h2>
               <p className="text-[10px] text-sidebar-muted">Gestion locative</p>
             </div>
           </div>

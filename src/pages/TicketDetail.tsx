@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { useTickets } from "@/contexts/TicketContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { statusLabels, statusColors, priorityColors, priorityLabels, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels } from "@/data/types";
@@ -20,6 +21,13 @@ export default function TicketDetail() {
   const ctx = useTickets();
   const { settings, needsOwnerApproval } = useSettings();
   const ticket = ctx.getTicket(id || "");
+
+  useEffect(() => {
+    if (ticket && ticket.status === "signale") {
+      ctx.qualifyTicket(ticket.id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id]);
 
   if (!ticket) return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Ticket introuvable</p></div>;
 
@@ -122,14 +130,12 @@ export default function TicketDetail() {
             </Card>
           </Tabs>
 
-          {/* Signalement -> Diagnostic */}
+          {/* Signalement -> Diagnostic (auto-lancé) */}
           {ticket.status === "signale" && (
             <Card className="border-0 shadow-sm border-l-4 border-l-primary">
-              <CardContent className="p-4">
-                <p className="text-sm mb-3">Ce ticket est en attente de diagnostic. L'agent IA va analyser la responsabilité et orienter le dossier.</p>
-                <Button onClick={() => ctx.qualifyTicket(ticket.id)}>
-                  <Brain className="h-4 w-4 mr-2" /> Lancer le diagnostic IA
-                </Button>
+              <CardContent className="p-4 flex items-center gap-3">
+                <Brain className="h-4 w-4 text-primary animate-pulse shrink-0" />
+                <p className="text-sm text-muted-foreground">Diagnostic IA en cours…</p>
               </CardContent>
             </Card>
           )}

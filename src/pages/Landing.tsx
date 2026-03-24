@@ -18,7 +18,7 @@ const Landing = () => {
             <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
               <HardHat className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold tracking-tight">SinistreFlow</span>
+            <span className="text-lg font-bold tracking-tight">Claro</span>
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
             <a href="#probleme" className="hover:text-foreground transition-colors">Le problème</a>
@@ -50,7 +50,7 @@ const Landing = () => {
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
               Aujourd'hui, chaque incident locatif peut vous prendre jusqu'à <strong className="text-foreground">45 à 60 minutes</strong> de gestion&nbsp;: relances, coordination artisans, validation propriétaire, suivi du dossier.
               <br className="hidden md:block" />
-              <span className="mt-2 block">Avec SinistreFlow, tout est structuré automatiquement — du signalement locataire à la clôture du dossier.</span>
+              <span className="mt-2 block">Avec Claro, tout est structuré automatiquement — du signalement locataire à la clôture du dossier.</span>
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
               <Link to={DEMO_URL}>
@@ -92,7 +92,7 @@ const Landing = () => {
                 </div>
                 <div className="flex-1 flex justify-center">
                   <div className="bg-muted rounded-md px-4 py-1 text-xs text-muted-foreground">
-                    app.sinistreflow.fr
+                    app.claro.fr
                   </div>
                 </div>
               </div>
@@ -169,7 +169,7 @@ const Landing = () => {
               ))}
             </div>
             <p className="text-lg font-semibold text-primary">
-              SinistreFlow transforme ce chaos en workflow structuré.
+              Claro transforme ce chaos en workflow structuré.
             </p>
           </div>
         </div>
@@ -224,7 +224,7 @@ const Landing = () => {
               Une plateforme qui fait avancer les dossiers à votre place.
             </h2>
             <p className="text-muted-foreground text-lg leading-relaxed">
-              SinistreFlow transforme chaque signalement locataire en dossier structuré et piloté automatiquement.
+              Claro transforme chaque signalement locataire en dossier structuré et piloté automatiquement.
               <br />
               <strong className="text-foreground">Vous ne gérez plus des e-mails ou des appels. Vous pilotez un workflow clair.</strong>
             </p>
@@ -285,7 +285,7 @@ const Landing = () => {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Résultats</p>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              Ce que SinistreFlow change pour votre agence.
+              Ce que Claro change pour votre agence.
             </h2>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -365,7 +365,7 @@ const Landing = () => {
               Prêt à simplifier la gestion de vos sinistres&nbsp;?
             </h2>
             <p className="text-primary-foreground/80 text-lg mb-8">
-              Découvrez comment SinistreFlow peut transformer votre gestion des incidents locatifs. Accédez à la démo en un clic.
+              Découvrez comment Claro peut transformer votre gestion des incidents locatifs. Accédez à la démo en un clic.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to={DEMO_URL}>
@@ -391,10 +391,10 @@ const Landing = () => {
             <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
               <HardHat className="h-3.5 w-3.5 text-primary-foreground" />
             </div>
-            <span className="text-sm font-semibold">SinistreFlow</span>
+            <span className="text-sm font-semibold">Claro</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            © 2025 SinistreFlow. Plateforme de gestion des sinistres et travaux pour agences immobilières.
+            © 2025 Claro. Plateforme de gestion des sinistres et travaux pour agences immobilières.
           </p>
           <Link to={DEMO_URL} className="text-sm text-primary hover:underline font-medium">
             Connexion

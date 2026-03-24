@@ -116,6 +116,14 @@ export default function Dashboard() {
     <div className="space-y-6 max-w-5xl">
       <h1 className="text-xl font-bold">Tableau de bord</h1>
 
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Ouverts</p><p className="text-2xl font-bold">{ouverts}</p></div><Clock className="h-8 w-8 text-primary/20" /></div></CardContent></Card>
+        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Urgents</p><p className="text-2xl font-bold text-destructive">{urgents}</p></div><AlertTriangle className="h-8 w-8 text-destructive/20" /></div></CardContent></Card>
+        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Interventions</p><p className="text-2xl font-bold">{interventions}</p></div><HardHat className="h-8 w-8 text-accent/20" /></div></CardContent></Card>
+        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Clôturés</p><p className="text-2xl font-bold text-success">{clotures}</p></div><CheckCircle2 className="h-8 w-8 text-success/20" /></div></CardContent></Card>
+      </div>
+
       {/* Auto-detected signalements */}
       {autoSignalements.length > 0 && (
         <div className="space-y-3">
@@ -175,15 +183,6 @@ export default function Dashboard() {
           ))}
         </div>
       )}
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Ouverts</p><p className="text-2xl font-bold">{ouverts}</p></div><Clock className="h-8 w-8 text-primary/20" /></div></CardContent></Card>
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Urgents</p><p className="text-2xl font-bold text-destructive">{urgents}</p></div><AlertTriangle className="h-8 w-8 text-destructive/20" /></div></CardContent></Card>
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Interventions</p><p className="text-2xl font-bold">{interventions}</p></div><HardHat className="h-8 w-8 text-accent/20" /></div></CardContent></Card>
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Clôturés</p><p className="text-2xl font-bold text-success">{clotures}</p></div><CheckCircle2 className="h-8 w-8 text-success/20" /></div></CardContent></Card>
-      </div>
-
 
       {/* Correction modal */}
       <Dialog open={!!correcting} onOpenChange={open => { if (!open) setCorrecting(null); }}>
