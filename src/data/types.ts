@@ -94,10 +94,12 @@ export const SEUIL_DELEGATION = 500;
 export interface AgencySettings {
   id: string;
   agency_id: string;
+  agency_name: string;
   delegation_threshold: number;
   always_ask_owner: boolean;
   escalation_delay_days: number;
   escalation_reminders_count: number;
+  onboarding_completed: boolean;
 }
 
 export const statusLabels: Record<TicketStatus, string> = {

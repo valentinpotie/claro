@@ -19,7 +19,7 @@ export default function Guide() {
           <div className="space-y-3">
             <div className="bg-muted rounded-lg p-4">
               <p className="font-semibold mb-1">1. Accroche (2 min) — Dashboard</p>
-              <p className="text-muted-foreground">"Imaginez que c'est lundi matin. Vous ouvrez SinistreFlow et vous voyez immédiatement vos 6 dossiers ouverts, dont 2 urgents. Pas besoin de chercher dans vos emails ou votre tableur."</p>
+              <p className="text-muted-foreground">"Imaginez que c'est lundi matin. Vous ouvrez Claro et vous voyez immédiatement vos 6 dossiers ouverts, dont 2 urgents. Pas besoin de chercher dans vos emails ou votre tableur."</p>
               <p className="mt-2 font-medium text-primary">→ Observer la réaction : hochement de tête, soupir de reconnaissance ?</p>
             </div>
 
