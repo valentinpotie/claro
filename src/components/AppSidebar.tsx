@@ -1,6 +1,6 @@
 import {
-  LayoutDashboard, ClipboardList, Wrench, UserCheck,
-  HardHat, Receipt, BookOpen, PlusCircle, Archive, CheckCircle2, Settings,
+  LayoutDashboard, ClipboardList,
+  HardHat, PlusCircle, Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -15,19 +15,7 @@ const mainItems = [
   { title: "Nouveau signalement", url: "/signalement", icon: PlusCircle },
 ];
 
-const workflowItems = [
-  { title: "Contact artisan", url: "/artisans", icon: Wrench },
-  { title: "Accord propriétaire", url: "/validation", icon: UserCheck },
-  { title: "Interventions", url: "/interventions", icon: HardHat },
-  { title: "Confirmation", url: "/confirmation", icon: CheckCircle2 },
-  { title: "Facturation", url: "/facturation", icon: Receipt },
-  { title: "Clôture", url: "/cloture", icon: Archive },
-];
 
-const guideItems = [
-  { title: "Guide de démo", url: "/guide", icon: BookOpen },
-  { title: "Paramètres", url: "/settings", icon: Settings },
-];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -74,21 +62,17 @@ export function AppSidebar() {
           <SidebarGroupLabel>Principal</SidebarGroupLabel>
           <SidebarGroupContent>{renderItems(mainItems)}</SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Parcours</SidebarGroupLabel>
-          <SidebarGroupContent>{renderItems(workflowItems)}</SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Outils</SidebarGroupLabel>
-          <SidebarGroupContent>{renderItems(guideItems)}</SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-3">
         {!collapsed && (
-          <div className="text-[10px] text-sidebar-muted">
+          <div className="text-[10px] text-sidebar-muted border-t pt-3">
             Agence Immobilière Durand<br />Gestionnaire: Sophie Martin
           </div>
         )}
+        <NavLink to="/settings" className="text-xs text-sidebar-muted hover:text-sidebar-foreground transition-colors flex items-center gap-2">
+          <Settings className="h-3.5 w-3.5" />
+          {!collapsed && <span>Paramètres</span>}
+        </NavLink>
       </SidebarFooter>
     </Sidebar>
   );

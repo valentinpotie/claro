@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 const DEMO_URL = "/dashboard";
+const LOGIN_URL = "/onboarding";
 
 const Landing = () => {
   return (
@@ -26,7 +27,7 @@ const Landing = () => {
             <a href="#fonctionnement" className="hover:text-foreground transition-colors">Comment ça marche</a>
             <a href="#benefices" className="hover:text-foreground transition-colors">Bénéfices</a>
           </nav>
-          <Link to={DEMO_URL}>
+          <Link to={LOGIN_URL}>
             <Button variant="outline" size="sm" className="font-medium">
               Connexion
             </Button>
@@ -44,24 +45,17 @@ const Landing = () => {
               Conçu pour les agences immobilières françaises
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
-              Reprenez le contrôle sur la gestion de{" "}
-              <span className="text-primary">vos sinistres et travaux.</span>
+              Le pilote automatique{" "}
+              <span className="text-primary">de vos interventions.</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              Aujourd'hui, chaque incident locatif peut vous prendre jusqu'à <strong className="text-foreground">45 à 60 minutes</strong> de gestion&nbsp;: relances, coordination artisans, validation propriétaire, suivi du dossier.
-              <br className="hidden md:block" />
-              <span className="mt-2 block">Avec Claro, tout est structuré automatiquement — du signalement locataire à la clôture du dossier.</span>
+              Chaque demande devient un ticket suivi. Vos interventions avancent d'elles-mêmes : artisans relancés, syndics coordonnés, propriétaires informés.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
               <Link to={DEMO_URL}>
                 <Button size="lg" className="h-12 px-8 text-base font-semibold gap-2">
-                  Découvrir la plateforme
+                  Découvrir Claro
                   <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link to={DEMO_URL}>
-                <Button variant="outline" size="lg" className="h-12 px-8 text-base font-medium">
-                  Connexion
                 </Button>
               </Link>
             </div>
@@ -374,7 +368,7 @@ const Landing = () => {
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to={DEMO_URL}>
+              <Link to={LOGIN_URL}>
                 <Button size="lg" variant="outline" className="h-12 px-8 text-base font-medium border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
                   Connexion
                 </Button>
@@ -396,7 +390,7 @@ const Landing = () => {
           <p className="text-xs text-muted-foreground">
             © 2025 Claro. Plateforme de gestion des sinistres et travaux pour agences immobilières.
           </p>
-          <Link to={DEMO_URL} className="text-sm text-primary hover:underline font-medium">
+          <Link to={LOGIN_URL} className="text-sm text-primary hover:underline font-medium">
             Connexion
           </Link>
         </div>
