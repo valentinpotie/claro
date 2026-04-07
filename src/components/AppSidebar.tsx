@@ -56,9 +56,9 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         {!collapsed ? (
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
+            <a href="/dashboard" className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
               <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
+            </a>
             <div>
               <h2 className="text-sm font-bold text-sidebar-foreground">SinistreFlow</h2>
               <p className="text-[10px] text-sidebar-muted">Gestion locative</p>

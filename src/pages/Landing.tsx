@@ -70,7 +70,7 @@ const Landing = () => {
             <div className="grid grid-cols-3 gap-6 max-w-2xl mx-auto">
               {[
                 { value: "–60 %", label: "de temps de gestion par incident" },
-                { value: "0", label: "demande perdue" },
+                { value: "0", label: "relance oubliée" },
                 { value: "100 %", label: "de visibilité sur vos dossiers" },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
