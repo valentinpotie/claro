@@ -168,7 +168,7 @@ export const workflowSteps: { key: TicketStatus; label: string }[] = [
   { key: "qualifie", label: "Diagnostic" },
   { key: "contact_artisan", label: "Contact artisan" },
   { key: "reception_devis", label: "Devis" },
-  { key: "validation_proprio", label: "Accord proprio." },
+  { key: "validation_proprio", label: "Accord propriétaire" },
   { key: "intervention", label: "Intervention" },
   { key: "confirmation_passage", label: "Confirmation" },
   { key: "facturation", label: "Facturation" },

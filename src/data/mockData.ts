@@ -131,4 +131,17 @@ export const initialTickets: Ticket[] = [
     notes: ["Signalé par 3 locataires", "Syndic contacté le 12/03", "Relance #1 le 14/03 — sans réponse", "Relance #2 le 19/03 — toujours sans réponse"],
     mailSource: { from: "p.lambert@email.fr", to: "travaux@agence-durand.fr", subject: "Badge Vigik HS depuis 1 semaine", receivedAt: "2026-03-12T09:30:00", body: "Bonjour,\n\nLe badge Vigik de la résidence Les Oliviers ne fonctionne plus depuis environ une semaine. Impossible d'entrer dans l'immeuble sans qu'un voisin nous ouvre.\n\nPlusieurs locataires se plaignent. C'est un problème de parties communes, je suppose que ça relève du syndic ?\n\nMerci de faire le nécessaire.\n\nPierre Lambert\nRésidence Les Oliviers, 15 avenue des Platanes\nTél : 06 89 01 23 45" },
   },
+  {
+    id: "10", reference: "SIN-2026-0144", titre: "Interphone en panne — hall d'entrée",
+    description: "L'interphone de l'immeuble ne fonctionne plus depuis 3 jours. Les visiteurs ne peuvent plus sonner aux résidents. Le problème concerne l'ensemble des logements du bâtiment B.",
+    status: "signale", priorite: "normale", categorie: "autre",
+    dateCreation: "2026-03-19", dateMaj: "2026-03-19", urgence: false,
+    locataire: { nom: "Camille Faure", telephone: "06 91 23 45 67", email: "c.faure@email.fr" },
+    bien: { adresse: "Résidence Parc Royal, 30 rue de la République, 69002 Lyon", lot: "Parties communes — Bât. B", proprietaire: "SCI Parc Royal", telephoneProprio: "04 72 55 66 77", emailProprio: "sci.parcroyal@email.fr" },
+    responsabilite: "syndic",
+    syndic: { nom: "Nexity Lyon", email: "lyon@nexity.fr", telephone: "04 72 33 44 55" },
+    quotes: [], messages: {}, photos: [],
+    notes: ["Signalé par la locataire du 3ème étage"],
+    mailSource: { from: "c.faure@email.fr", to: "travaux@agence-durand.fr", subject: "Interphone HS bâtiment B", receivedAt: "2026-03-19T11:00:00", body: "Bonjour,\n\nL'interphone du bâtiment B de la résidence Parc Royal ne fonctionne plus depuis vendredi dernier. Impossible pour nos visiteurs de nous joindre à l'entrée.\n\nC'est un problème de parties communes, pourriez-vous contacter le syndic ?\n\nMerci,\nCamille Faure\nRésidence Parc Royal, 30 rue de la République\nTél : 06 91 23 45 67" },
+  },
 ];

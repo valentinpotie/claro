@@ -36,9 +36,9 @@ export default function Guide() {
             </div>
 
             <div className="bg-muted rounded-lg p-4">
-              <p className="font-semibold mb-1">4. Points de douleur (3 min) — Accord proprio. + Artisans</p>
+              <p className="font-semibold mb-1">4. Points de douleur (3 min) — Accord propriétaire + Artisans</p>
               <p className="text-muted-foreground">"L'accord propriétaire : en un clic, vous envoyez le devis. Relance automatique à 48h. Pour les artisans : votre carnet avec notes, disponibilité et historique."</p>
-              <p className="mt-2 font-medium text-primary">→ Confirmer que l'accord proprio est bien le pain point #1</p>
+              <p className="mt-2 font-medium text-primary">→ Confirmer que l'accord propriétaire est bien le pain point #1</p>
             </div>
 
             <div className="bg-muted rounded-lg p-4">
