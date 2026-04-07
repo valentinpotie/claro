@@ -42,7 +42,7 @@ export default function Onboarding() {
   const [escalationDays, setEscalationDays] = useState(settings.escalation_delay_days);
   const [reminders, setReminders] = useState(settings.escalation_reminders_count);
 
-  // Étape 3 — Artisans
+  // Étape 2 — Artisans
   const [newArtisan, setNewArtisan] = useState<Omit<Artisan, "id">>({
     nom: "", specialite: "Plomberie", ville: "", telephone: "", email: "",
     note: 5, interventions: 0, delaiMoyen: "48h",

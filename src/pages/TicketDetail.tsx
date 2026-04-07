@@ -1,8 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTickets } from "@/contexts/TicketContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { statusLabels, statusColors, priorityColors, priorityLabels, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels } from "@/data/types";
+import { statusLabels, statusColors, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { MessageThread } from "@/components/MessageThread";
 import {
-  ArrowLeft, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
-  AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Shield, Building2, RefreshCw, Gavel
+  ArrowLeft, ArrowRight, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
+  AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Shield, Building2, RefreshCw, Gavel, X, Sparkles
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -21,6 +21,7 @@ export default function TicketDetail() {
   const ctx = useTickets();
   const { settings, needsOwnerApproval } = useSettings();
   const ticket = ctx.getTicket(id || "");
+  const [ticketTourStep, setTicketTourStep] = useState(0);
 
   useEffect(() => {
     if (ticket && ticket.status === "signale") {
@@ -40,29 +41,94 @@ export default function TicketDetail() {
   const artisan = ticket.artisanId ? ctx.getArtisan(ticket.artisanId) : null;
   const syndicStepColor = "bg-orange-500 text-white";
   const syndicCompletedColor = "bg-orange-400 text-white";
+  const isHeaderFocused = ticketTourStep === 1;
+  const isStepperFocused = ticketTourStep === 2;
+
+  const closeTicketTour = () => {
+    setTicketTourStep(0);
+  };
+
+  const nextTicketTourStep = () => {
+    if (ticketTourStep === 1) {
+      setTicketTourStep(2);
+      return;
+    }
+    closeTicketTour();
+  };
+
+  useEffect(() => {
+    if (ticketTourStep === 1) {
+      document.getElementById("ticket-tour-header")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    if (ticketTourStep === 2) {
+      document.getElementById("ticket-tour-stepper")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [ticketTourStep]);
 
   return (
     <div className="space-y-6 max-w-6xl">
+      {ticketTourStep > 0 && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/35" onClick={closeTicketTour} />
+          <div className="fixed bottom-6 right-6 z-[70] w-[360px] rounded-xl border bg-card shadow-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b bg-primary/5 flex items-center justify-between">
+              <p className="text-xs font-semibold">Visite guidée</p>
+              <button onClick={closeTicketTour} className="h-6 w-6 rounded-md hover:bg-muted flex items-center justify-center">
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-sm font-semibold">
+                {ticketTourStep === 1 ? "Résumé du dossier" : "Suivi étape par étape"}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {ticketTourStep === 1
+                  ? "Vous voyez ici le titre, le statut et la responsabilité du dossier. Vous pouvez aussi marquer un ticket comme urgent."
+                  : "Chaque dossier suit ces étapes automatiquement. L'IA gère les relances et les échanges avec les artisans."}
+              </p>
+            </div>
+            <div className="px-4 py-3 border-t bg-muted/30 flex items-center justify-between">
+              <button onClick={closeTicketTour} className="text-xs text-muted-foreground hover:text-foreground">Passer le tour</button>
+              <Button size="sm" onClick={nextTicketTourStep} className="h-7 text-xs gap-1.5">
+                {ticketTourStep === 1 ? "Suivant" : "Terminer"} <ArrowRight className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div id="ticket-tour-header" className={`flex items-center gap-3 ${isHeaderFocused ? "relative z-[60] rounded-xl ring-2 ring-primary ring-offset-4 ring-offset-background bg-background p-2" : ""}`}>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-bold">{ticket.titre}</h1>
-            <Badge variant="outline" className={`status-badge ${priorityColors[ticket.priorite]} border-0`}>{priorityLabels[ticket.priorite]}</Badge>
             <Badge variant="outline" className={`status-badge ${statusColors[ticket.status]} border-0`}>{statusLabels[ticket.status]}</Badge>
-            {ticket.urgence && <Badge className="bg-destructive text-destructive-foreground text-[10px]">URGENT</Badge>}
+            {ticket.urgence ? (
+              <Button variant="destructive" size="sm" className="gap-1 text-xs h-7" onClick={() => ctx.updateTicket(ticket.id, { urgence: false })}>
+                <AlertTriangle className="h-3 w-3" /> Urgent <X className="h-3 w-3" />
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" className="gap-1 text-xs h-7 text-muted-foreground hover:text-destructive hover:border-destructive/50" onClick={() => ctx.updateTicket(ticket.id, { urgence: true })}>
+                <AlertTriangle className="h-3 w-3" /> Marquer urgent
+              </Button>
+            )}
             {ticket.responsabilite && <Badge variant="outline" className="status-badge border-0 bg-primary/10 text-primary">Resp: {responsabiliteLabels[ticket.responsabilite]}</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">{ticket.reference} · Créé le {new Date(ticket.dateCreation).toLocaleDateString("fr-FR")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => ctx.setShowJournal(true)}>
-          <Bot className="h-4 w-4 mr-1" /> Journal IA
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setTicketTourStep(1)}>
+            <Sparkles className="h-3.5 w-3.5" /> Tutoriel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => ctx.setShowJournal(true)}>
+            <Bot className="h-4 w-4 mr-1" /> Journal IA
+          </Button>
+        </div>
       </div>
 
       {/* Workflow stepper */}
-      <Card className={`border-0 shadow-sm ${isSyndic ? "ring-1 ring-orange-200" : ""}`}>
+      <Card id="ticket-tour-stepper" className={`border-0 shadow-sm ${isSyndic ? "ring-1 ring-orange-200" : ""} ${isStepperFocused ? "relative z-[60] ring-2 ring-primary ring-offset-4 ring-offset-background" : ""}`}>
         <CardContent className="p-4">
           {isSyndic && (
             <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-orange-700">
@@ -75,7 +141,7 @@ export default function TicketDetail() {
                 const isCompleted = i < currentStepIndex;
                 const isCurrent = i === currentStepIndex;
                 return (
-                  <div key={step.key} className="flex items-center flex-1 min-w-0">
+                  <div key={step.key} className="flex items-start flex-1 min-w-0">
                     <div className="flex flex-col items-center" style={{ minWidth: 48 }}>
                       <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
                         isCompleted

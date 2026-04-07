@@ -1,15 +1,19 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   HardHat, ArrowRight, AlertTriangle, Clock, Users, Eye, 
   CheckCircle, Droplets, Flame, DoorOpen, Shield, Zap,
-  FileText, BarChart3, Wrench, ChevronRight, Mail, TrendingDown, Timer, Search
+  FileText, BarChart3, Wrench, ChevronRight, Mail, TrendingDown, Timer, Search, CalendarCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const DEMO_URL = "/dashboard";
-const LOGIN_URL = "/onboarding";
+const CALENDAR_URL = "https://calendar.app.google/V73ZcSgq5vY7cDnk7";
+
+const scrollTo = (id: string) => {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+};
 
 const Landing = () => {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       {/* Header */}
@@ -22,14 +26,14 @@ const Landing = () => {
             <span className="text-lg font-bold tracking-tight">Claro</span>
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
-            <a href="#probleme" className="hover:text-foreground transition-colors">Le problème</a>
-            <a href="#solution" className="hover:text-foreground transition-colors">Solution</a>
-            <a href="#fonctionnement" className="hover:text-foreground transition-colors">Comment ça marche</a>
-            <a href="#benefices" className="hover:text-foreground transition-colors">Bénéfices</a>
+            <button onClick={() => scrollTo("probleme")} className="hover:text-foreground transition-colors">Le problème</button>
+            <button onClick={() => scrollTo("solution")} className="hover:text-foreground transition-colors">Solution</button>
+            <button onClick={() => scrollTo("fonctionnement")} className="hover:text-foreground transition-colors">Comment ça marche</button>
+            <button onClick={() => scrollTo("benefices")} className="hover:text-foreground transition-colors">Bénéfices</button>
           </nav>
-          <Link to={LOGIN_URL}>
-            <Button variant="outline" size="sm" className="font-medium">
-              Connexion
+          <Link to={CALENDAR_URL} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Button variant="outline" size="sm" className="font-medium gap-1.5">
+              <CalendarCheck className="h-3.5 w-3.5" /> Réserver une démo
             </Button>
           </Link>
         </div>
@@ -41,8 +45,8 @@ const Landing = () => {
         <div className="container mx-auto px-4 md:px-8 py-20 md:py-32 relative">
           <div className="max-w-3xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-8">
-              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-              Conçu pour les agences immobilières françaises
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Démo privée · Sur invitation uniquement
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
               Le pilote automatique{" "}
@@ -52,20 +56,21 @@ const Landing = () => {
               Chaque demande devient un ticket suivi. Vos interventions avancent d'elles-mêmes : artisans relancés, syndics coordonnés, propriétaires informés.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
-              <Link to={DEMO_URL}>
+              <a href={CALENDAR_URL} target="_blank" rel="noopener noreferrer">
                 <Button size="lg" className="h-12 px-8 text-base font-semibold gap-2">
-                  Découvrir Claro
-                  <ArrowRight className="h-4 w-4" />
+                  <CalendarCheck className="h-4 w-4" />
+                  Réserver une Démo
                 </Button>
-              </Link>
+              </a>
+              <p className="text-sm text-muted-foreground">Démo de 15 min avec l'équipe Claro</p>
             </div>
 
             {/* Chiffres clés hero */}
             <div className="grid grid-cols-3 gap-6 max-w-2xl mx-auto">
               {[
                 { value: "–60 %", label: "de temps de gestion par incident" },
-                { value: "0", label: "demande perdue" },
-                { value: "100 %", label: "de visibilité sur vos dossiers" },
+                { value: "0", label: "relance oubliée" },
+                { value: "+30 %", label: "satisfaction client" },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
                   <div className="text-3xl md:text-4xl font-black text-primary">{stat.value}</div>
@@ -358,21 +363,20 @@ const Landing = () => {
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
               Prêt à simplifier la gestion de vos sinistres&nbsp;?
             </h2>
-            <p className="text-primary-foreground/80 text-lg mb-8">
-              Découvrez comment Claro peut transformer votre gestion des incidents locatifs. Accédez à la démo en un clic.
+            <p className="text-primary-foreground/80 text-lg mb-4">
+              Claro est actuellement en démo privée. Réservez un créneau pour une présentation personnalisée avec notre équipe.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to={DEMO_URL}>
+            <p className="text-primary-foreground/60 text-sm mb-8">
+              15 minutes pour découvrir comment Claro peut transformer votre gestion des incidents.
+            </p>
+            <div className="flex flex-col items-center justify-center gap-3">
+              <a href={CALENDAR_URL} target="_blank" rel="noopener noreferrer">
                 <Button size="lg" variant="secondary" className="h-12 px-8 text-base font-semibold gap-2">
-                  Voir la démo
-                  <ArrowRight className="h-4 w-4" />
+                  <CalendarCheck className="h-4 w-4" />
+                  Réserver une Démo
                 </Button>
-              </Link>
-              <Link to={LOGIN_URL}>
-                <Button size="lg" variant="outline" className="h-12 px-8 text-base font-medium border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
-                  Connexion
-                </Button>
-              </Link>
+              </a>
+              <p className="text-primary-foreground/60 text-sm">Démo de 15 min avec l'équipe Claro</p>
             </div>
           </div>
         </div>
@@ -390,9 +394,20 @@ const Landing = () => {
           <p className="text-xs text-muted-foreground">
             © 2025 Claro. Plateforme de gestion des sinistres et travaux pour agences immobilières.
           </p>
-          <Link to={LOGIN_URL} className="text-sm text-primary hover:underline font-medium">
-            Connexion
-          </Link>
+          <a href={CALENDAR_URL} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline font-medium">
+            Réserver une démo
+          </a>
+        </div>
+        {/* Accès interne — triple-clic sur le logo */}
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={(e) => {
+              if (e.detail === 3) navigate("/onboarding");
+            }}
+            className="text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors select-none cursor-default"
+          >
+            v0.1
+          </button>
         </div>
       </footer>
     </div>

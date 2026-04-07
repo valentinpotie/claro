@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertTriangle, Clock, CheckCircle2, HardHat, Mail, Brain, Sparkles, FileText } from "lucide-react";
+import { GuidedTour } from "@/components/GuidedTour";
 
 interface AutoSignalement {
   id: string;
@@ -28,8 +29,6 @@ interface AutoSignalement {
   priorite: TicketPriority;
   responsabilite: Responsabilite;
   urgence: boolean;
-  detectedAgo: string;
-  sourceEmail: string;
   mailSource: { from: string; to: string; subject: string; body: string; receivedAt: string };
 }
 
@@ -42,7 +41,6 @@ const initialAutoSignalements: AutoSignalement[] = [
     locataireNom: "Julie Petit", locataireTel: "06 34 56 78 90", locataireEmail: "j.petit@email.fr",
     proprietaire: "Marc Lefèvre", telephoneProprio: "06 77 88 99 00", emailProprio: "m.lefevre@email.fr",
     categorie: "plomberie", priorite: "haute", responsabilite: "proprietaire", urgence: false,
-    detectedAgo: "il y a 2h", sourceEmail: "travaux@agence-durand.fr",
     mailSource: { from: "j.petit@email.fr", to: "travaux@agence-durand.fr", subject: "Problème fuite salle de bain", receivedAt: "2026-03-20T08:15:00", body: "Bonjour,\n\nJe vous contacte car il y a une fuite sous le lavabo de la salle de bain depuis ce matin. L'eau coule doucement mais le meuble vasque commence à gonfler.\n\nMerci de faire intervenir un plombier.\n\nCordialement,\nJulie Petit\n7 rue Pasteur, Apt 2A\nTél : 06 34 56 78 90" },
   },
   {
@@ -53,7 +51,6 @@ const initialAutoSignalements: AutoSignalement[] = [
     locataireNom: "Sophie Martin", locataireTel: "06 11 22 33 44", locataireEmail: "s.martin@email.fr",
     proprietaire: "Groupe Immo Plus", telephoneProprio: "04 78 99 88 77", emailProprio: "gestion@immoplus.fr",
     categorie: "chauffage", priorite: "normale", responsabilite: "proprietaire", urgence: false,
-    detectedAgo: "il y a 4h", sourceEmail: "travaux@agence-durand.fr",
     mailSource: { from: "s.martin@email.fr", to: "travaux@agence-durand.fr", subject: "Radiateur en panne", receivedAt: "2026-03-20T06:30:00", body: "Bonjour,\n\nLe radiateur de ma chambre ne fonctionne plus depuis hier soir. J'ai vérifié le thermostat et purgé le radiateur mais rien n'y fait. Les autres pièces chauffent normalement.\n\nPourriez-vous envoyer un chauffagiste ?\n\nMerci,\nSophie Martin\n22 boulevard Voltaire, Apt 4C, Lyon 3ème" },
   },
   {
@@ -64,7 +61,6 @@ const initialAutoSignalements: AutoSignalement[] = [
     locataireNom: "Thomas Roche", locataireTel: "06 55 44 33 22", locataireEmail: "t.roche@email.fr",
     proprietaire: "Anne Dubois", telephoneProprio: "04 67 12 34 56", emailProprio: "a.dubois@email.fr",
     categorie: "serrurerie", priorite: "haute", responsabilite: "proprietaire", urgence: false,
-    detectedAgo: "il y a 5h", sourceEmail: "travaux@agence-durand.fr",
     mailSource: { from: "t.roche@email.fr", to: "travaux@agence-durand.fr", subject: "Serrure porte entrée difficile", receivedAt: "2026-03-20T05:45:00", body: "Bonjour,\n\nDepuis quelques jours la serrure de ma porte d'entrée est de plus en plus difficile à tourner. Ce matin j'ai mis 5 minutes à ouvrir. J'ai peur de me retrouver bloqué dehors.\n\nEst-ce possible de faire venir un serrurier ?\n\nMerci d'avance,\nThomas Roche\n5 place de la Comédie, Apt 1B\nTél : 06 55 44 33 22" },
   },
 ];
@@ -75,7 +71,8 @@ export default function Dashboard() {
   const [autoSignalements, setAutoSignalements] = useState<AutoSignalement[]>(initialAutoSignalements);
   const [dismissing, setDismissing] = useState<Set<string>>(new Set());
   const [correcting, setCorrecting] = useState<AutoSignalement | null>(null);
-  const [correctionForm, setCorrectionForm] = useState<{ categorie: TicketCategory; priorite: TicketPriority; responsabilite: Responsabilite; description: string; urgence: boolean }>({ categorie: "plomberie", priorite: "normale", responsabilite: "proprietaire", description: "", urgence: false });
+  const [tourHighlight, setTourHighlight] = useState(false);
+  const [correctionForm, setCorrectionForm] = useState<{ categorie: TicketCategory; priorite: TicketPriority; responsabilite: Responsabilite; description: string }>({ categorie: "plomberie", priorite: "normale", responsabilite: "proprietaire", description: "" });
   const [viewModes, setViewModes] = useState<Record<string, "synthese" | "mail">>({});
 
   const validateSignalement = (s: AutoSignalement) => {
@@ -97,7 +94,7 @@ export default function Dashboard() {
 
   const openCorrection = (s: AutoSignalement) => {
     setCorrecting(s);
-    setCorrectionForm({ categorie: s.categorie, priorite: s.priorite, responsabilite: s.responsabilite, description: s.description, urgence: s.urgence });
+    setCorrectionForm({ categorie: s.categorie, priorite: s.priorite, responsabilite: s.responsabilite, description: s.description });
   };
 
   const submitCorrection = () => {
@@ -108,13 +105,21 @@ export default function Dashboard() {
   };
 
   const ouverts = tickets.filter(t => t.status !== "cloture").length;
-  const urgents = tickets.filter(t => t.urgence || t.priorite === "urgente").length;
-  const interventions = tickets.filter(t => t.status === "intervention").length;
-  const clotures = tickets.filter(t => t.status === "cloture").length;
+
+  // Sort: urgent tickets first
+  const sortedTickets = [...tickets].sort((a, b) => (b.urgence ? 1 : 0) - (a.urgence ? 1 : 0));
+
+  const urgents = tickets.filter(t => t.urgence).length;
+  const interventions = sortedTickets.filter(t => t.status === "intervention").length;
+  const clotures = sortedTickets.filter(t => t.status === "cloture").length;
+  const highlightSignalements = tourHighlight;
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <h1 className="text-xl font-bold">Tableau de bord</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <GuidedTour onHighlight={setTourHighlight} />
+      </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -126,7 +131,7 @@ export default function Dashboard() {
 
       {/* Auto-detected signalements */}
       {autoSignalements.length > 0 && (
-        <div className="space-y-3">
+        <div className={`space-y-3 transition-all duration-300 ${highlightSignalements ? "relative z-[55] rounded-xl ring-2 ring-indigo-400 ring-offset-4 ring-offset-background p-3 bg-background" : ""}`}>
           <div className="flex items-center gap-3 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
             <Mail className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <div className="flex-1">
@@ -147,7 +152,7 @@ export default function Dashboard() {
                     <p className="text-sm font-medium">{s.titre}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{s.adresse}, {s.lot} — Locataire : {s.locataireNom}</p>
                     <div className="flex gap-1 mt-2">
-                      <Button size="sm" variant={(!viewModes[s.id] || viewModes[s.id] === "synthese") ? "default" : "ghost"} className="h-6 px-2 text-[10px]" onClick={(e) => { e.stopPropagation(); setViewModes(p => ({ ...p, [s.id]: "synthese" })); }}>
+                      <Button size="sm" variant={(!viewModes[s.id] || viewModes[s.id] === "synthese") ? "outline" : "ghost"} className="h-6 px-2 text-[10px]" onClick={(e) => { e.stopPropagation(); setViewModes(p => ({ ...p, [s.id]: "synthese" })); }}>
                         <Brain className="h-3 w-3 mr-1" /> Synthèse IA
                       </Button>
                       <Button size="sm" variant={viewModes[s.id] === "mail" ? "default" : "ghost"} className="h-6 px-2 text-[10px]" onClick={(e) => { e.stopPropagation(); setViewModes(p => ({ ...p, [s.id]: "mail" })); }}>
@@ -163,11 +168,14 @@ export default function Dashboard() {
                       </div>
                     )}
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      <Badge variant="secondary" className="text-[10px]">{categoryLabels[s.categorie]}</Badge>
-                      <Badge variant="outline" className="text-[10px] border-0 bg-warning/15 text-warning">{priorityLabels[s.priorite]}</Badge>
-                      <Badge variant="outline" className="text-[10px] border-0 bg-primary/10 text-primary">{responsabiliteLabels[s.responsabilite]}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">Catégorie : {categoryLabels[s.categorie]}</Badge>
+                      <Badge variant="outline" className="text-[10px] border-0 bg-warning/15 text-warning">Priorité : {priorityLabels[s.priorite]}</Badge>
+                      <Badge variant="outline" className="text-[10px] border-0 bg-primary/10 text-primary">Responsabilité : {responsabiliteLabels[s.responsabilite]}</Badge>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">Détecté {s.detectedAgo} depuis {s.sourceEmail}</p>
+                    <p className="text-[10px] text-muted-foreground mt-2">
+                      {new Date(s.mailSource.receivedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      {" · Reçu par email de "}{s.mailSource.from}
+                    </p>
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
                     <Button size="sm" onClick={() => validateSignalement(s)}>
@@ -226,10 +234,7 @@ export default function Dashboard() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="urgence-check" checked={correctionForm.urgence} onChange={e => setCorrectionForm(p => ({ ...p, urgence: e.target.checked }))} className="rounded border-input" />
-                <Label htmlFor="urgence-check" className="text-xs cursor-pointer">Urgence</Label>
-              </div>
+
             </div>
           )}
           <DialogFooter>

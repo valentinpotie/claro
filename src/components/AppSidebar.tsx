@@ -3,7 +3,7 @@ import {
   HardHat, PlusCircle, Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
@@ -21,6 +21,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const navigate = useNavigate();
   const isActive = (path: string) => location.pathname === path;
 
   const renderItems = (items: typeof mainItems) => (
@@ -40,7 +41,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 cursor-pointer" onClick={() => navigate("/")}>
         {!collapsed ? (
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
