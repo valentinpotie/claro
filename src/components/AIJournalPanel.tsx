@@ -28,7 +28,7 @@ export function AIJournalPanel() {
               <Bot className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <SheetTitle className="text-base">Agent IA — Journal d'actions</SheetTitle>
+              <SheetTitle className="text-base">Agent Claro — Journal d'actions</SheetTitle>
               {ticket && <p className="text-xs text-muted-foreground mt-0.5">{ticket.reference} · {ticket.titre}</p>}
             </div>
           </div>

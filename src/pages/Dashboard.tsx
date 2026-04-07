@@ -136,7 +136,7 @@ export default function Dashboard() {
             <Mail className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">{autoSignalements.length} nouveau{autoSignalements.length > 1 ? "x" : ""} signalement{autoSignalements.length > 1 ? "s" : ""} détecté{autoSignalements.length > 1 ? "s" : ""}</p>
-              <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70">Analysés automatiquement par l'IA depuis les mails entrants</p>
+              <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70">Analysés automatiquement par Claro depuis les mails entrants</p>
             </div>
             <Sparkles className="h-4 w-4 text-indigo-400" />
           </div>

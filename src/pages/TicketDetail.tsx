@@ -14,14 +14,19 @@ import {
   AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Shield, Building2, RefreshCw, Gavel, X, Sparkles
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const ctx = useTickets();
-  const { settings, needsOwnerApproval } = useSettings();
+  const { settings, needsOwnerApproval, updateSettings } = useSettings();
+  const { toast } = useToast();
   const ticket = ctx.getTicket(id || "");
   const [ticketTourStep, setTicketTourStep] = useState(0);
+  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [factureSent, setFactureSent] = useState(false);
 
   useEffect(() => {
     if (ticket && ticket.status === "signale") {
@@ -84,7 +89,7 @@ export default function TicketDetail() {
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {ticketTourStep === 1
                   ? "Vous voyez ici le titre, le statut et la responsabilité du dossier. Vous pouvez aussi marquer un ticket comme urgent."
-                  : "Chaque dossier suit ces étapes automatiquement. L'IA gère les relances et les échanges avec les artisans."}
+                  : "Chaque dossier suit ces étapes automatiquement. Claro gère les relances et les échanges avec les artisans."}
               </p>
             </div>
             <div className="px-4 py-3 border-t bg-muted/30 flex items-center justify-between">
@@ -122,7 +127,7 @@ export default function TicketDetail() {
             <Sparkles className="h-3.5 w-3.5" /> Tutoriel
           </Button>
           <Button variant="outline" size="sm" onClick={() => ctx.setShowJournal(true)}>
-            <Bot className="h-4 w-4 mr-1" /> Journal IA
+            <Bot className="h-4 w-4 mr-1" /> Journal Claro
           </Button>
         </div>
       </div>
@@ -141,9 +146,9 @@ export default function TicketDetail() {
                 const isCompleted = i < currentStepIndex;
                 const isCurrent = i === currentStepIndex;
                 return (
-                  <div key={step.key} className="flex items-start flex-1 min-w-0">
-                    <div className="flex flex-col items-center" style={{ minWidth: 48 }}>
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                  <div key={step.key} className="flex items-center flex-1 min-w-0">
+                    <div className="flex flex-col items-center shrink-0" style={{ width: 64 }}>
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium ${
                         isCompleted
                           ? (isSyndic ? syndicCompletedColor : "bg-success text-success-foreground")
                           : isCurrent
@@ -152,9 +157,9 @@ export default function TicketDetail() {
                       }`}>
                         {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
                       </div>
-                      <span className={`text-[10px] mt-1.5 whitespace-nowrap ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</span>
+                      <span className={`text-[10px] mt-1.5 text-center leading-tight ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</span>
                     </div>
-                    {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 mt-4 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
+                    {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 -mt-4 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
                   </div>
                 );
               })}
@@ -431,9 +436,46 @@ export default function TicketDetail() {
                     </Badge>
                   </div>
                 </div>
-                <Button onClick={() => ctx.validateFacture(ticket.id)} className="w-full">
-                  <CheckCircle2 className="h-4 w-4 mr-2" /> Valider la facturation
-                </Button>
+                <div className="flex gap-2">
+                  {!factureSent ? (
+                    <Button variant="outline" className="flex-1" onClick={() => {
+                      if (settings.accountant_email) {
+                        setFactureSent(true);
+                        toast({ title: "Facture envoyée", description: `Envoyée à ${settings.accountant_email}` });
+                      } else {
+                        setShowEmailInput(true);
+                      }
+                    }}>
+                      <Mail className="h-4 w-4 mr-2" /> Envoyer au comptable
+                    </Button>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center gap-2 h-10 rounded-md border bg-success/10 text-success text-sm font-medium">
+                      <CheckCircle2 className="h-4 w-4" /> Envoyée à {settings.accountant_email}
+                    </div>
+                  )}
+                  <Button onClick={() => ctx.validateFacture(ticket.id)} className="flex-1">
+                    <CheckCircle2 className="h-4 w-4 mr-2" /> Valider et clôturer
+                  </Button>
+                </div>
+                {showEmailInput && !settings.accountant_email && (
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder="Email du comptable"
+                      value={emailDraft}
+                      onChange={e => setEmailDraft(e.target.value)}
+                      className="flex-1 h-9 text-sm"
+                    />
+                    <Button size="sm" className="h-9" disabled={!emailDraft.includes("@")} onClick={() => {
+                      updateSettings({ accountant_email: emailDraft });
+                      setShowEmailInput(false);
+                      setFactureSent(true);
+                      toast({ title: "Facture envoyée", description: `Envoyée à ${emailDraft}` });
+                    }}>
+                      <Send className="h-3.5 w-3.5 mr-1" /> Envoyer
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -470,7 +512,7 @@ export default function TicketDetail() {
                   <p className="text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> {ticket.syndic.email}</p>
                   <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> {ticket.syndic.telephone}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">L'IA va envoyer un mail au syndic avec la description du problème.</p>
+                <p className="text-xs text-muted-foreground">Claro va envoyer un mail au syndic avec la description du problème.</p>
                 <Button onClick={() => ctx.contactSyndic(ticket.id)} className="w-full bg-orange-600 hover:bg-orange-700">
                   <Send className="h-4 w-4 mr-2" /> Envoyer au syndic
                 </Button>
