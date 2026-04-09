@@ -29,7 +29,7 @@ export function GuidedTour({ onHighlight }: { onHighlight?: (active: boolean) =>
 
   if (!visible) {
     return (
-      <Button size="sm" className="gap-1.5" onClick={() => setVisible(true)}>
+      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setVisible(true)}>
         <Sparkles className="h-3.5 w-3.5" /> Tutoriel
       </Button>
     );

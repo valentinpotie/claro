@@ -11,7 +11,7 @@ export default function Qualification() {
   const navigate = useNavigate();
   const filtered = tickets.filter(t => t.status === "signale");
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div><h1 className="text-xl font-bold">Diagnostic</h1><p className="text-sm text-muted-foreground">Analyse de responsabilité par l'agent Claro</p></div>
       {filtered.length === 0 ? (
         <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente de diagnostic</CardContent></Card>

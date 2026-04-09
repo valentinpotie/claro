@@ -80,7 +80,7 @@ export default function TicketDetail() {
   }, [ticketTourStep]);
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6">
       {ticketTourStep > 0 && (
         <>
           <div className="fixed inset-0 z-40 bg-black/35" onClick={closeTicketTour} />
@@ -155,12 +155,12 @@ export default function TicketDetail() {
                   <div key={step.key} className="relative flex-1 min-w-0 flex flex-col items-center">
                     {i < displaySteps.length - 1 && (
                       <div
-                        className={`absolute h-0.5 left-1/2 right-[-50%] ${
+                        className={`absolute h-0.5 ${
                           isCompleted && i + 1 <= currentStepIndex
                             ? (isSyndic ? "bg-orange-400" : i + 1 === currentStepIndex ? "bg-primary" : "bg-foreground/30")
                             : "bg-border"
                         }`}
-                        style={{ top: 16, transform: "translateY(-50%)" }}
+                        style={{ top: 16, transform: "translateY(-50%)", left: "calc(50% + 20px)", right: "calc(-50% + 20px)" }}
                       />
                     )}
                     <div className={`relative z-10 h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium ${

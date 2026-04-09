@@ -135,44 +135,58 @@ export default function Onboarding() {
               <p className="text-sm text-muted-foreground">Ces règles définissent quand votre gestionnaire peut agir sans accord du propriétaire.</p>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="flex items-center justify-between rounded-[4px] border border-input p-3">
+              {/* Section 1 — Seuil de délégation */}
+              <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium">Toujours demander l'accord propriétaire</p>
-                  <p className="text-xs text-muted-foreground">Chaque devis devra être approuvé par le propriétaire</p>
+                  <p className="text-sm font-semibold">Seuil de délégation</p>
+                  <p className="text-xs text-muted-foreground">En dessous de ce montant, le gestionnaire peut valider un devis sans demander l'accord du propriétaire.</p>
                 </div>
-                <Switch checked={alwaysAsk} onCheckedChange={setAlwaysAsk} />
+                <div className="flex items-center justify-between rounded-[4px] border border-input p-3">
+                  <div>
+                    <p className="text-sm font-medium">Toujours demander l'accord propriétaire</p>
+                    <p className="text-xs text-muted-foreground">Chaque devis devra être approuvé par le propriétaire</p>
+                  </div>
+                  <Switch checked={alwaysAsk} onCheckedChange={setAlwaysAsk} />
+                </div>
+
+                {!alwaysAsk && (
+                  <div className="relative">
+                    <Input
+                      type="number" min={0} step={50}
+                      value={threshold}
+                      onChange={e => setThreshold(Number(e.target.value))}
+                      placeholder="Seuil de délégation (€)"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                  </div>
+                )}
               </div>
 
-              {!alwaysAsk && (
-                <div className="relative">
-                  <Input
-                    type="number" min={0} step={50}
-                    value={threshold}
-                    onChange={e => setThreshold(Number(e.target.value))}
-                    placeholder="Seuil de délégation (€)"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
-                  <p className="text-xs text-muted-foreground mt-1.5">En dessous de ce montant, le gestionnaire peut valider sans accord propriétaire</p>
-                </div>
-              )}
+              <hr className="border-border" />
 
+              {/* Section 2 — Relances automatiques */}
               <div className="space-y-4">
                 <div>
+                  <p className="text-sm font-semibold">Relances automatiques</p>
+                  <p className="text-xs text-muted-foreground">Configurez les relances envoyées automatiquement en l'absence de réponse du propriétaire ou de l'artisan.</p>
+                </div>
+                <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Délai avant escalade</span>
+                    <span className="text-sm font-medium">Délai avant relance</span>
                     <span className="text-sm font-semibold">{escalationDays} jour{escalationDays > 1 ? "s" : ""}</span>
                   </div>
                   <Slider value={[escalationDays]} onValueChange={([v]) => setEscalationDays(v)} min={1} max={7} step={1} />
                   <p className="text-xs text-muted-foreground mt-1">Nombre de jours sans réponse avant relance automatique</p>
                 </div>
                 <div>
-                  <span className="text-sm font-medium mb-2 block">Relances avant escalade</span>
+                  <span className="text-sm font-medium mb-2 block">Nombre total de relances</span>
                   <Select value={String(reminders)} onValueChange={v => setReminders(Number(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {[1, 2, 3, 5].map(n => <SelectItem key={n} value={String(n)}>{n} relance{n > 1 ? "s" : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">Au-delà, le ticket sera escaladé pour traitement manuel.</p>
                 </div>
               </div>
 

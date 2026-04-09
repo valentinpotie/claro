@@ -4,7 +4,7 @@ import { BookOpen, Target, MessageSquare, Euro, Users, Lightbulb } from "lucide-
 
 export default function Guide() {
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Guide de démo & entretien discovery</h1>
         <p className="text-sm text-muted-foreground">Scénario complet, questions d'entretien et approche pricing</p>

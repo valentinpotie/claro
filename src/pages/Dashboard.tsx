@@ -114,7 +114,7 @@ export default function Dashboard() {
   const highlightSignalements = tourHighlight;
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold font-display">Tableau de bord</h1>
         <GuidedTour onHighlight={setTourHighlight} />

@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { AlertTriangle, Send, UploadCloud } from "lucide-react";
+import { Send, UploadCloud } from "lucide-react";
 
 export default function Signalement() {
   const { createTicket } = useTickets();
@@ -28,7 +27,7 @@ export default function Signalement() {
     navigate(`/tickets/${ticket.id}`);
   };
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       <h1 className="text-xl font-bold font-display">Nouveau signalement</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="border-0">
@@ -49,10 +48,6 @@ export default function Signalement() {
                   <SelectContent><SelectItem value="basse">Basse</SelectItem><SelectItem value="normale">Normale</SelectItem><SelectItem value="haute">Haute</SelectItem><SelectItem value="urgente">Urgente</SelectItem></SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-[4px] bg-destructive/5 border border-destructive/20">
-              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" /><Label className="text-sm flex-1">Urgence ?</Label>
-              <Switch checked={form.urgence} onCheckedChange={v => set("urgence", v)} />
             </div>
 
             <div className="space-y-2">

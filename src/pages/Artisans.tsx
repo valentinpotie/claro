@@ -16,7 +16,7 @@ export default function Artisans() {
   const ticketsArtisan = tickets.filter(t => t.status === "contact_artisan" || t.status === "reception_devis");
   const filteredArtisans = artisans.filter(a => !search || a.nom.toLowerCase().includes(search.toLowerCase()) || a.specialite.toLowerCase().includes(search.toLowerCase()));
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div><h1 className="text-xl font-bold">Contact artisan</h1><p className="text-sm text-muted-foreground">Demande de diagnostic et réception des devis</p></div>
       <Tabs defaultValue="tickets">
         <TabsList><TabsTrigger value="tickets">Tickets ({ticketsArtisan.length})</TabsTrigger><TabsTrigger value="annuaire">Annuaire</TabsTrigger></TabsList>

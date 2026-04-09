@@ -20,7 +20,7 @@ export default function Facturation() {
   const [emailDraft, setEmailDraft] = useState("");
   const filtered = tickets.filter(t => t.status === "facturation");
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div><h1 className="text-xl font-bold">Facturation</h1><p className="text-sm text-muted-foreground">Contrôle et validation des factures</p></div>
       {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucune facture en attente</CardContent></Card> :
       filtered.map(t => {

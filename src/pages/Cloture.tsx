@@ -13,7 +13,7 @@ export default function Cloture() {
   const filtered = tickets.filter(t => t.status === "cloture");
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold">Clôture</h1>
         <p className="text-sm text-muted-foreground">Dossiers terminés et archivés</p>

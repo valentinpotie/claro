@@ -68,7 +68,7 @@ export function AIJournalPanel() {
           </div>
         </SheetHeader>
         <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-3">
+          <div className="space-y-3 pb-4">
             {entries.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">Aucune action pour ce ticket</p>
             )}

@@ -11,7 +11,7 @@ export default function ConfirmationPassage() {
   const navigate = useNavigate();
   const filtered = tickets.filter(t => t.status === "confirmation_passage");
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div><h1 className="text-xl font-bold">Confirmation passage</h1><p className="text-sm text-muted-foreground">Confirmez si l'artisan est bien intervenu</p></div>
       {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun passage à confirmer</CardContent></Card> :
       filtered.map(t => {
