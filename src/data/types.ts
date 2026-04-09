@@ -91,13 +91,28 @@ export interface Artisan {
 export const SEUIL_DELEGATION = 500;
 
 // Mirrors Supabase table "agency_settings"
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  target: "artisan" | "locataire" | "proprietaire";
+  useCase: string;
+  subject: string;
+  body: string;
+}
+
 export interface AgencySettings {
   id: string;
   agency_id: string;
+  agency_name: string;
   delegation_threshold: number;
   always_ask_owner: boolean;
   escalation_delay_days: number;
   escalation_reminders_count: number;
+  onboarding_completed: boolean;
+  enabled_priorities: TicketPriority[];
+  tour_completed: boolean;
+  accountant_email: string;
+  email_templates: EmailTemplate[];
 }
 
 export const statusLabels: Record<TicketStatus, string> = {
@@ -137,10 +152,10 @@ export const priorityLabels: Record<TicketPriority, string> = {
 };
 
 export const priorityColors: Record<TicketPriority, string> = {
-  urgente: "bg-destructive/15 text-destructive",
-  haute: "bg-warning/15 text-warning",
-  normale: "bg-primary/10 text-primary",
-  basse: "bg-muted text-muted-foreground",
+  urgente: "bg-destructive/25 text-destructive",
+  haute: "bg-red-200/70 text-red-700",
+  normale: "bg-muted text-foreground",
+  basse: "bg-cyan-100/60 text-cyan-700",
 };
 
 export const categoryLabels: Record<TicketCategory, string> = {

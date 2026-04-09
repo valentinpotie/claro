@@ -21,9 +21,9 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
   };
 
   return (
-    <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
+    <Card className="border-0">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2">
+        <CardTitle className="text-sm font-display flex items-center gap-2">
           <MessageSquare className="h-4 w-4" /> Échanges avec {artisanNom}
         </CardTitle>
       </CardHeader>
@@ -49,7 +49,7 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
         <div className="flex gap-2">
           <Textarea
             value={input} onChange={e => setInput(e.target.value)}
-            placeholder="Écrire un message…" className="min-h-[60px] text-sm"
+            placeholder="Décrivez votre demande à l'artisan…" className="min-h-[60px] text-sm"
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
           />
           <Button size="icon" onClick={handleSend} disabled={!input.trim()}>

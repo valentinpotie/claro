@@ -21,17 +21,17 @@ export default function Facturation() {
   const filtered = tickets.filter(t => t.status === "facturation");
   return (
     <div className="space-y-6 max-w-4xl">
-      <div><h1 className="text-xl font-bold font-display">Facturation</h1><p className="text-sm text-muted-foreground">Contrôle et validation des factures</p></div>
-      {filtered.length === 0 ? <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="py-12 text-center text-muted-foreground">Aucune facture en attente</CardContent></Card> :
+      <div><h1 className="text-xl font-bold">Facturation</h1><p className="text-sm text-muted-foreground">Contrôle et validation des factures</p></div>
+      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucune facture en attente</CardContent></Card> :
       filtered.map(t => {
         const artisan = t.artisanId ? getArtisan(t.artisanId) : null;
         const payeur = t.responsabilite === "locataire" ? t.locataire.nom : t.bien.proprietaire;
         return (
-          <Card key={t.id} className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4 flex items-start justify-between">
+          <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4 flex items-start justify-between">
             <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
               <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
               <p className="font-medium text-sm">{t.titre}</p>
-              {t.facture && <div className="mt-2 p-3 bg-muted rounded-[4px] space-y-1 text-xs">
+              {t.facture && <div className="mt-2 p-3 bg-muted rounded-lg space-y-1 text-xs">
                 <div className="flex justify-between"><span className="text-muted-foreground"><FileText className="h-3 w-3 inline mr-1" />{t.facture.refFacture}</span><span className="font-semibold"><Euro className="h-3 w-3 inline" /> {t.facture.montant} €</span></div>
                 <p>{t.facture.prestation}</p>
                 <p className="text-muted-foreground">Artisan : {artisan?.nom}</p>

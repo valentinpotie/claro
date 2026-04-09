@@ -22,7 +22,7 @@ export default function TicketsList() {
   );
   return (
     <div className="space-y-6 max-w-5xl">
-      <h1 className="text-xl font-bold font-display">Tous les tickets ({tickets.length})</h1>
+      <h1 className="text-xl font-bold">Tous les tickets ({tickets.length})</h1>
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher..." className="pl-9" /></div>
         <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-48"><SelectValue placeholder="Statut" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem>{Object.entries(statusLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
@@ -33,7 +33,7 @@ export default function TicketsList() {
       </div>
       <div className="space-y-2">
         {filtered.map(t => (
-          <Card key={t.id} className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] hover:shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] transition-shadow cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
+          <Card key={t.id} className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
