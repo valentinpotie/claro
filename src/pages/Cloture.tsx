@@ -64,9 +64,9 @@ export default function Cloture() {
                       <p className="font-medium">{t.facture?.montant || 0} €</p>
                     </div>
                   </div>
-                  {t.rdv && (
+                  {t.dateInterventionPrevue && (
                     <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                      <Calendar className="h-3 w-3" /> Intervention le {t.rdv.date} à {t.rdv.heure}
+                      <Calendar className="h-3 w-3" /> Intervention le {t.dateInterventionPrevue}
                     </p>
                   )}
                   {t.responsabilite && (

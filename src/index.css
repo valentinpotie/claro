@@ -1,32 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 30% 12%;
+    /* Surface tiers — "The Digital Curator" */
+    --background: 60 6% 97%;          /* #F9F9F9 — clinical gallery base */
+    --foreground: 180 5% 11%;         /* #1A1C1C — deep on_surface */
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 30% 12%;
+    --card: 0 0% 100%;                /* white opaque fallback */
+    --card-foreground: 180 5% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 12%;
+    --popover-foreground: 180 5% 11%;
 
-    --primary: 220 65% 38%;
+    /* Deep Violet — primary action */
+    --primary: 239 84% 67%;           /* #6366F1 */
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 239 84% 57%;     /* darker violet for hover */
 
-    --secondary: 220 15% 92%;
-    --secondary-foreground: 220 30% 20%;
+    /* Acid Green — brand accent */
+    --secondary: 72 100% 50%;         /* #CCFF00 */
+    --secondary-foreground: 72 100% 5%;
+    --secondary-hover: 72 100% 42%;   /* darker green for hover */
 
-    --muted: 220 15% 94%;
-    --muted-foreground: 220 10% 46%;
+    /* Tonal surfaces */
+    --muted: 60 5% 93%;               /* #EDEDE8 — surface_container_low */
+    --muted-foreground: 0 0% 42%;     /* #6B6B6B */
 
-    --accent: 30 90% 50%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 239 54% 93%;            /* light violet surface */
+    --accent-foreground: 239 58% 38%;
 
+    /* Semantic status — kept for functional clarity */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
@@ -36,51 +41,30 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 220 65% 38%;
+    /* Boundaries — Ghost Border principle */
+    --border: 72 14% 73% / 0.15;      /* #C4C9AC at 15% — ghost border */
+    --input: 60 5% 90%;               /* surface_container_high for inputs */
+    --ring: 180 5% 11%;               /* dark neutral focus */
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;                /* 4px radius */
 
-    --sidebar-background: 220 30% 15%;
-    --sidebar-foreground: 220 15% 85%;
-    --sidebar-primary: 220 65% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 25% 22%;
-    --sidebar-accent-foreground: 220 15% 90%;
-    --sidebar-border: 220 25% 22%;
-    --sidebar-ring: 220 65% 55%;
-    --sidebar-muted: 220 15% 40%;
-  }
+    /* Sidebar — dark control center */
+    --sidebar-background: 180 5% 11%; /* #1A1C1C */
+    --sidebar-foreground: 60 5% 85%;
+    --sidebar-primary: 72 100% 50%;
+    --sidebar-primary-foreground: 72 100% 5%;
+    --sidebar-accent: 180 5% 18%;
+    --sidebar-accent-foreground: 60 5% 92%;
+    --sidebar-border: 180 5% 18%;
+    --sidebar-ring: 72 100% 50%;
+    --sidebar-muted: 0 0% 42%;
 
-  .dark {
-    --background: 220 30% 8%;
-    --foreground: 220 15% 92%;
-    --card: 220 30% 12%;
-    --card-foreground: 220 15% 92%;
-    --popover: 220 30% 12%;
-    --popover-foreground: 220 15% 92%;
-    --primary: 220 65% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 25% 18%;
-    --secondary-foreground: 220 15% 90%;
-    --muted: 220 25% 18%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 30 90% 50%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 25% 20%;
-    --input: 220 25% 20%;
-    --ring: 220 65% 55%;
-    --sidebar-background: 220 30% 8%;
-    --sidebar-foreground: 220 15% 85%;
-    --sidebar-primary: 220 65% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 25% 15%;
-    --sidebar-accent-foreground: 220 15% 90%;
-    --sidebar-border: 220 25% 15%;
-    --sidebar-ring: 220 65% 55%;
+    /* Ambient shadow — soft atmospheric lift */
+    --ambient-shadow: 0 20px 60px -10px hsl(180 5% 11% / 0.06);
+
+    /* Glass surface for overlays */
+    --glass-bg: hsl(0 0% 100% / 0.7);
+    --glass-blur: 24px;
   }
 }
 
@@ -91,7 +75,12 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Space Grotesk for display/headings via .font-display */
+  .font-display {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
   }
 }
 
