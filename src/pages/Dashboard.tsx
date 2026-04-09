@@ -180,7 +180,7 @@ export default function Dashboard() {
                     <Button size="sm" onClick={() => validateSignalement(s)}>
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Valider et créer le ticket
                     </Button>
-                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => openCorrection(s)}>
+                    <Button size="sm" variant="outline" className="text-muted-foreground hover:text-foreground" onClick={() => openCorrection(s)}>
                       Corriger
                     </Button>
                   </div>

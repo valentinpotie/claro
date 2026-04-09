@@ -6,7 +6,7 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 
 const mainItems = [
@@ -41,22 +41,27 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 cursor-pointer" onClick={() => navigate("/")}>
-        {!collapsed ? (
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center">
-              <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold font-display text-sidebar-foreground">Claro</h2>
-              <p className="text-[10px] text-sidebar-muted">Gestion locative</p>
-            </div>
+      <SidebarHeader className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="cursor-pointer" onClick={() => navigate("/")}>
+            {!collapsed ? (
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center">
+                  <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold font-display text-sidebar-foreground">Claro</h2>
+                  <p className="text-[10px] text-sidebar-muted">Gestion locative</p>
+                </div>
+              </div>
+            ) : (
+              <div className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center">
+                <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center mx-auto">
-            <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
-          </div>
-        )}
+          <SidebarTrigger className="shrink-0" />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

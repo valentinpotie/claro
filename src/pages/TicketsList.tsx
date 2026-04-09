@@ -47,9 +47,9 @@ export default function TicketsList() {
                       t.priorite === "urgente"
                         ? "bg-destructive/20 text-destructive"
                         : t.priorite === "haute"
-                          ? "bg-warning/25 text-warning"
+                          ? "bg-destructive/15 text-destructive"
                           : t.priorite === "normale"
-                            ? "bg-warning/25 text-warning"
+                            ? "bg-warning/20 text-amber-800 dark:text-amber-300"
                             : "bg-muted text-muted-foreground"
                     }`}
                   >

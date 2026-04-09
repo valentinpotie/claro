@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   HardHat, ArrowRight, ArrowLeft, Check, Building2, Settings2, Wrench, Rocket,
   Plus, Trash2, Star, Phone, Mail,
@@ -40,7 +39,6 @@ export default function Onboarding() {
   const [threshold, setThreshold] = useState(settings.delegation_threshold);
   const [alwaysAsk, setAlwaysAsk] = useState(settings.always_ask_owner);
   const [escalationDays, setEscalationDays] = useState(settings.escalation_delay_days);
-  const [reminders, setReminders] = useState(settings.escalation_reminders_count);
 
   // Étape 2 — Artisans
   const [newArtisan, setNewArtisan] = useState<Omit<Artisan, "id">>({
@@ -54,7 +52,7 @@ export default function Onboarding() {
       updateSettings({ agency_name: agencyName.trim() || "Mon Agence" });
     }
     if (step === 1) {
-      updateSettings({ delegation_threshold: threshold, always_ask_owner: alwaysAsk, escalation_delay_days: escalationDays, escalation_reminders_count: reminders });
+      updateSettings({ delegation_threshold: threshold, always_ask_owner: alwaysAsk, escalation_delay_days: escalationDays });
     }
     setStep(s => s + 1);
   };
@@ -132,7 +130,6 @@ export default function Onboarding() {
           <Card className="border-0">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-display">Règles de gestion</CardTitle>
-              <p className="text-sm text-muted-foreground">Ces règles définissent quand votre gestionnaire peut agir sans accord du propriétaire.</p>
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Section 1 — Seuil de délégation */}
@@ -141,6 +138,19 @@ export default function Onboarding() {
                   <p className="text-sm font-semibold">Seuil de délégation</p>
                   <p className="text-xs text-muted-foreground">En dessous de ce montant, le gestionnaire peut valider un devis sans demander l'accord du propriétaire.</p>
                 </div>
+                {!alwaysAsk && (
+                  <div className="relative">
+                    <Input
+                      type="number" min={0} step={50}
+                      value={threshold}
+                      onChange={e => setThreshold(Number(e.target.value))}
+                      className="pl-8"
+                      placeholder="Seuil de délégation (€)"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between rounded-[4px] border border-input p-3">
                   <div>
                     <p className="text-sm font-medium">Toujours demander l'accord propriétaire</p>
@@ -148,18 +158,6 @@ export default function Onboarding() {
                   </div>
                   <Switch checked={alwaysAsk} onCheckedChange={setAlwaysAsk} />
                 </div>
-
-                {!alwaysAsk && (
-                  <div className="relative">
-                    <Input
-                      type="number" min={0} step={50}
-                      value={threshold}
-                      onChange={e => setThreshold(Number(e.target.value))}
-                      placeholder="Seuil de délégation (€)"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
-                  </div>
-                )}
               </div>
 
               <hr className="border-border" />
@@ -178,16 +176,7 @@ export default function Onboarding() {
                   <Slider value={[escalationDays]} onValueChange={([v]) => setEscalationDays(v)} min={1} max={7} step={1} />
                   <p className="text-xs text-muted-foreground mt-1">Nombre de jours sans réponse avant relance automatique</p>
                 </div>
-                <div>
-                  <span className="text-sm font-medium mb-2 block">Nombre total de relances</span>
-                  <Select value={String(reminders)} onValueChange={v => setReminders(Number(v))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 5].map(n => <SelectItem key={n} value={String(n)}>{n} relance{n > 1 ? "s" : ""}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">Au-delà, le ticket sera escaladé pour traitement manuel.</p>
-                </div>
+
               </div>
 
               <div className="flex justify-between">
@@ -302,8 +291,8 @@ export default function Onboarding() {
                   <span className="font-medium">{settings.always_ask_owner ? "Toujours accord propriétaire" : `${settings.delegation_threshold} €`}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-[4px] bg-muted/40 px-3 py-2 text-sm">
-                  <span className="text-muted-foreground">Escalade après</span>
-                  <span className="font-medium">{settings.escalation_delay_days} jours · {settings.escalation_reminders_count} relances</span>
+                  <span className="text-muted-foreground">Délai de relances automatiques</span>
+                  <span className="font-medium">{settings.escalation_delay_days} jour{settings.escalation_delay_days > 1 ? "s" : ""}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-[4px] bg-muted/40 px-3 py-2 text-sm">
                   <span className="text-muted-foreground">Artisans configurés</span>
