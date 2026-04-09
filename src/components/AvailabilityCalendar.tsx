@@ -45,7 +45,7 @@ export function AvailabilityCalendar({ title, selectedSlots, onSlotsChange, high
   };
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="border-0">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
@@ -76,7 +76,7 @@ export function AvailabilityCalendar({ title, selectedSlots, onSlotsChange, high
                           className={`w-full h-8 rounded text-xs transition-colors flex items-center justify-center
                             ${sel && hl ? "bg-success text-success-foreground font-medium" :
                               sel ? "bg-primary text-primary-foreground" :
-                              hl ? "bg-warning/20 text-warning border border-warning/30" :
+                              hl ? "bg-warning/20 text-warning bg-warning/10" :
                               "bg-muted hover:bg-muted/70 text-muted-foreground"}`}
                         >
                           {sel && hl ? <Check className="h-3 w-3" /> : sel ? "✓" : ""}

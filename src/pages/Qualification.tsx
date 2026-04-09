@@ -12,11 +12,11 @@ export default function Qualification() {
   const filtered = tickets.filter(t => t.status === "signale");
   return (
     <div className="space-y-6 max-w-4xl">
-      <div><h1 className="text-xl font-bold">Diagnostic</h1><p className="text-sm text-muted-foreground">Analyse de responsabilité par l'agent Claro</p></div>
+      <div><h1 className="text-xl font-bold font-display">Diagnostic</h1><p className="text-sm text-muted-foreground">Analyse de responsabilité par l'agent IA</p></div>
       {filtered.length === 0 ? (
-        <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente de diagnostic</CardContent></Card>
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente de diagnostic</CardContent></Card>
       ) : filtered.map(t => (
-        <Card key={t.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+        <Card key={t.id} className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] hover:shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] transition-shadow">
           <CardContent className="p-4 flex items-start justify-between">
             <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
               <div className="flex items-center gap-2 mb-1">

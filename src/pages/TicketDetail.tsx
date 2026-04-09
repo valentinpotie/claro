@@ -1,8 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
 import { useTickets } from "@/contexts/TicketContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { statusLabels, statusColors, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels, priorityLabels, priorityColors } from "@/data/types";
+import { statusLabels, statusColors, priorityColors, priorityLabels, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,31 +9,17 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { MessageThread } from "@/components/MessageThread";
 import {
-  ArrowLeft, ArrowRight, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
-  AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Shield, Building2, RefreshCw, Gavel, X, Sparkles
+  ArrowLeft, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
+  AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Shield, Building2, RefreshCw, Gavel
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
 
 export default function TicketDetail() {
-  const fallbackAccountantEmail = "comptabilite@agence-demo.fr";
   const { id } = useParams();
   const navigate = useNavigate();
   const ctx = useTickets();
-  const { settings, needsOwnerApproval, updateSettings } = useSettings();
-  const { toast } = useToast();
+  const { settings, needsOwnerApproval } = useSettings();
   const ticket = ctx.getTicket(id || "");
-  const [ticketTourStep, setTicketTourStep] = useState(0);
-  const [showEmailInput, setShowEmailInput] = useState(false);
-  const [emailDraft, setEmailDraft] = useState("");
-  const [factureSent, setFactureSent] = useState(false);
-
-  useEffect(() => {
-    if (ticket && ticket.status === "signale") {
-      ctx.qualifyTicket(ticket.id);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticket?.id]);
 
   if (!ticket) return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Ticket introuvable</p></div>;
 
@@ -45,134 +30,57 @@ export default function TicketDetail() {
   const currentStepIndex = displaySteps.findIndex(s => s.key === ticket.status);
   const selectedQuote = ticket.quotes.find(q => q.id === ticket.selectedQuoteId);
   const artisan = ticket.artisanId ? ctx.getArtisan(ticket.artisanId) : null;
-  const accountantEmail = settings.accountant_email || fallbackAccountantEmail;
   const syndicStepColor = "bg-orange-500 text-white";
   const syndicCompletedColor = "bg-orange-400 text-white";
-  const isHeaderFocused = ticketTourStep === 1;
-  const isStepperFocused = ticketTourStep === 2;
-  const isDrawerFocused = ticketTourStep === 3;
-
-  const closeTicketTour = () => {
-    setTicketTourStep(0);
-    if (ctx.showJournal) ctx.setShowJournal(false);
-  };
-
-  const nextTicketTourStep = () => {
-    if (ticketTourStep === 1) {
-      setTicketTourStep(2);
-      return;
-    }
-    if (ticketTourStep === 2) {
-      ctx.setShowJournal(true);
-      setTicketTourStep(3);
-      return;
-    }
-    closeTicketTour();
-  };
-
-  useEffect(() => {
-    if (ticketTourStep === 1) {
-      document.getElementById("ticket-tour-header")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    if (ticketTourStep === 2) {
-      document.getElementById("ticket-tour-stepper")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [ticketTourStep]);
 
   return (
     <div className="space-y-6 max-w-6xl">
-      {ticketTourStep > 0 && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/35" onClick={closeTicketTour} />
-          <div className={`fixed bottom-6 z-[70] w-[360px] rounded-xl border bg-card shadow-2xl overflow-hidden ${
-            isDrawerFocused ? "left-6" : "right-6"
-          }`}>
-            <div className="px-4 py-3 border-b bg-primary/5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {isDrawerFocused && <Bot className="h-3.5 w-3.5 text-primary" />}
-                <p className="text-xs font-semibold">Visite guidée</p>
-                <span className="text-[10px] text-muted-foreground">{ticketTourStep}/3</span>
-              </div>
-              <button onClick={closeTicketTour} className="h-6 w-6 rounded-md hover:bg-muted flex items-center justify-center">
-                <X className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            </div>
-            <div className="px-4 py-3 space-y-2">
-              <p className="text-sm font-semibold">
-                {ticketTourStep === 1 ? "Résumé du dossier" : ticketTourStep === 2 ? "Suivi étape par étape" : "L'Agent Claro en action"}
-              </p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {ticketTourStep === 1
-                  ? "Vous voyez ici le titre, le statut et la responsabilité du dossier. Vous pouvez aussi marquer un ticket comme urgent."
-                  : ticketTourStep === 2
-                    ? "Chaque dossier suit ces étapes automatiquement. Claro gère les relances et les échanges avec les artisans."
-                    : "Ce panneau affiche en temps réel les actions automatisées de l'Agent Claro\u00a0: contact artisans, demande de devis, relances. Vous gardez le contrôle à chaque instant."}
-              </p>
-            </div>
-            <div className="px-4 py-3 border-t bg-muted/30 flex items-center justify-between">
-              <button onClick={closeTicketTour} className="text-xs text-muted-foreground hover:text-foreground">Passer le tour</button>
-              <Button size="sm" onClick={nextTicketTourStep} className="h-7 text-xs gap-1.5">
-                {ticketTourStep < 3 ? "Suivant" : "Terminer"} <ArrowRight className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
-
       {/* Header */}
-      <div id="ticket-tour-header" className={`flex items-center gap-3 ${isHeaderFocused ? "relative z-[60] rounded-xl ring-2 ring-primary ring-offset-4 ring-offset-background bg-background p-2" : ""}`}>
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-bold">{ticket.titre}</h1>
+            <h1 className="text-xl font-bold font-display">{ticket.titre}</h1>
+            <Badge variant="outline" className={`status-badge ${priorityColors[ticket.priorite]} border-0`}>{priorityLabels[ticket.priorite]}</Badge>
+            <Badge variant="outline" className={`status-badge ${statusColors[ticket.status]} border-0`}>{statusLabels[ticket.status]}</Badge>
+            {ticket.urgence && <Badge className="bg-destructive text-destructive-foreground text-[10px]">URGENT</Badge>}
+            {ticket.responsabilite && <Badge variant="outline" className="status-badge border-0 bg-primary/10 text-primary">Resp: {responsabiliteLabels[ticket.responsabilite]}</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">{ticket.reference} · Créé le {new Date(ticket.dateCreation).toLocaleDateString("fr-FR")}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => setTicketTourStep(1)}>
-            <Sparkles className="h-3.5 w-3.5" /> Tutoriel
-          </Button>
-          <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-[hsl(var(--secondary-hover))]" onClick={() => ctx.setShowJournal(true)}>
-            <Bot className="h-4 w-4 mr-1" /> Journal Claro
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => ctx.setShowJournal(true)}>
+          <Bot className="h-4 w-4 mr-1" /> Journal IA
+        </Button>
       </div>
 
       {/* Workflow stepper */}
-      <Card id="ticket-tour-stepper" className={`border-0 shadow-sm ${isSyndic ? "ring-1 ring-orange-200" : ""} ${isStepperFocused ? "relative z-[60] ring-2 ring-primary ring-offset-4 ring-offset-background" : ""}`}>
+      <Card className={`border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] ${isSyndic ? "ring-1 ring-orange-200" : ""}`}>
         <CardContent className="p-4">
           {isSyndic && (
             <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-orange-700">
               <Building2 className="h-3.5 w-3.5" /> Parcours Syndic
             </div>
           )}
-          <div>
+          <div className="overflow-x-auto">
             <div className="flex items-start">
               {displaySteps.map((step, i) => {
                 const isCompleted = i < currentStepIndex;
                 const isCurrent = i === currentStepIndex;
                 return (
-                  <div key={step.key} className="relative flex-1 min-w-0 flex flex-col items-center">
-                    {i < displaySteps.length - 1 && (
-                      <div
-                        className={`absolute h-0.5 left-1/2 right-[-50%] ${
-                          isCompleted && i + 1 <= currentStepIndex
-                            ? (isSyndic ? "bg-orange-400" : i + 1 === currentStepIndex ? "bg-primary" : "bg-foreground/30")
-                            : "bg-border"
-                        }`}
-                        style={{ top: 16, transform: "translateY(-50%)" }}
-                      />
-                    )}
-                    <div className={`relative z-10 h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                      isCompleted
-                        ? "bg-foreground text-background"
-                        : isCurrent
-                          ? (isSyndic ? syndicStepColor : "bg-primary text-primary-foreground")
-                          : "border border-border bg-background text-muted-foreground"
-                    }`}>
-                      {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                  <div key={step.key} className="flex items-center flex-1 min-w-0">
+                    <div className="flex flex-col items-center" style={{ minWidth: 48 }}>
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                        isCompleted
+                          ? (isSyndic ? syndicCompletedColor : "bg-success text-success-foreground")
+                          : isCurrent
+                            ? (isSyndic ? syndicStepColor : "bg-primary text-primary-foreground")
+                            : "bg-muted text-muted-foreground"
+                      }`}>
+                        {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                      </div>
+                      <span className={`text-[10px] mt-1.5 whitespace-nowrap ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : "text-muted-foreground"}`}>{step.label}</span>
                     </div>
-                    <span className={`text-[10px] mt-1.5 text-center leading-tight px-1 ${isCurrent ? (isSyndic ? "font-semibold text-orange-700" : "font-semibold text-primary") : isCompleted ? "text-foreground font-medium" : "text-muted-foreground"}`}>{step.label}</span>
+                    {i < displaySteps.length - 1 && <div className={`h-0.5 flex-1 mx-1 mt-4 ${isCompleted ? (isSyndic ? "bg-orange-300" : "bg-success") : "bg-border"}`} />}
                   </div>
                 );
               })}
@@ -187,13 +95,14 @@ export default function TicketDetail() {
           {/* Description + Mail source */}
           <Tabs defaultValue="description">
             <TabsList className="h-8 bg-transparent p-0 gap-1">
-              <TabsTrigger value="description" className="text-xs rounded-md px-4 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground">Description</TabsTrigger>
-              {ticket.mailSource && <TabsTrigger value="mail" className="text-xs rounded-md px-4 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground">Mail source</TabsTrigger>}
+              <TabsTrigger value="description" className="text-xs data-[state=active]:bg-background data-[state=active]:shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] data-[state=active]:bg-muted px-4">Description</TabsTrigger>
+              {ticket.mailSource && <TabsTrigger value="mail" className="text-xs data-[state=active]:bg-background data-[state=active]:shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] data-[state=active]:bg-muted px-4">Mail source</TabsTrigger>}
             </TabsList>
-            <Card className="border-0 shadow-sm">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] rounded-tl-none">
               <CardContent className="p-4">
                 <TabsContent value="description" className="mt-0">
                   <p className="text-sm leading-relaxed">{ticket.description}</p>
+                  <Badge variant="secondary" className="mt-3">{categoryLabels[ticket.categorie]}</Badge>
                 </TabsContent>
                 {ticket.mailSource && (
                   <TabsContent value="mail" className="mt-0">
@@ -206,22 +115,6 @@ export default function TicketDetail() {
                       </div>
                       <Separator />
                       <div className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{ticket.mailSource.body}</div>
-                      <Separator />
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-muted-foreground">Pièces jointes</p>
-                        <div className="flex flex-wrap gap-2">
-                          <div className="flex items-center gap-2 rounded-[4px] border bg-muted/50 px-2.5 py-1.5 text-xs">
-                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-medium">photo_fuite.jpg</span>
-                            <span className="text-muted-foreground">— 1.2 Mo</span>
-                          </div>
-                          <div className="flex items-center gap-2 rounded-[4px] border bg-muted/50 px-2.5 py-1.5 text-xs">
-                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-medium">constat_degats.pdf</span>
-                            <span className="text-muted-foreground">— 340 Ko</span>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </TabsContent>
                 )}
@@ -229,12 +122,14 @@ export default function TicketDetail() {
             </Card>
           </Tabs>
 
-          {/* Signalement -> Diagnostic (auto-lancé) */}
+          {/* Signalement -> Diagnostic */}
           {ticket.status === "signale" && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-primary">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Brain className="h-4 w-4 text-primary animate-pulse shrink-0" />
-                <p className="text-sm text-muted-foreground">Diagnostic IA en cours…</p>
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-primary">
+              <CardContent className="p-4">
+                <p className="text-sm mb-3">Ce ticket est en attente de diagnostic. L'agent IA va analyser la responsabilité et orienter le dossier.</p>
+                <Button onClick={() => ctx.qualifyTicket(ticket.id)}>
+                  <Brain className="h-4 w-4 mr-2" /> Lancer le diagnostic IA
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -242,7 +137,7 @@ export default function TicketDetail() {
           {/* Contact artisan */}
           {ticket.status === "contact_artisan" && (
             <>
-              <Card className="border-0 shadow-sm border-l-4 border-l-accent">
+              <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-accent">
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Wrench className="h-4 w-4" /> Contacter un artisan pour diagnostic sur place</CardTitle></CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground mb-3">L'artisan se déplacera pour constater le problème et établir un devis sur place.</p>
@@ -253,8 +148,8 @@ export default function TicketDetail() {
                       </Button>
                     ))}
                     {ctx.artisans.filter(a => !a.specialite.toLowerCase().includes(ticket.categorie === "electricite" ? "élect" : ticket.categorie)).map(a => (
-                      <Button key={a.id} size="sm" variant="outline" onClick={() => ctx.sendArtisanContact(ticket.id, a.id)}>
-                        <Send className="h-3 w-3 mr-1" /> {a.nom}
+                      <Button key={a.id} size="sm" variant="ghost" className="text-xs" onClick={() => ctx.sendArtisanContact(ticket.id, a.id)}>
+                        {a.nom}
                       </Button>
                     ))}
                   </div>
@@ -283,7 +178,7 @@ export default function TicketDetail() {
 
               {/* Simulate receiving quote */}
               {ticket.artisanId && (
-                <Card className="border-0 shadow-sm border-l-4 border-l-primary">
+                <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-primary">
                   <CardContent className="p-4">
                     <p className="text-sm mb-3">L'artisan a effectué son diagnostic sur place ?</p>
                     <Button onClick={() => ctx.receiveQuote(ticket.id)}>
@@ -299,10 +194,10 @@ export default function TicketDetail() {
           {ticket.status === "reception_devis" && selectedQuote && (() => {
             const willAutoValidate = !needsOwnerApproval(selectedQuote.montant);
             return (
-              <Card className="border-0 shadow-sm border-l-4 border-l-primary">
+              <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-primary">
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" /> Devis reçu</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="p-3 bg-muted rounded-lg">
+                  <div className="p-3 bg-muted rounded-[4px]">
                     <p className="font-medium text-sm">{selectedQuote.artisanNom}</p>
                     <p className="text-xs text-muted-foreground">{selectedQuote.description}</p>
                     <p className="text-sm font-semibold mt-1">{selectedQuote.montant} € · {selectedQuote.delai}</p>
@@ -327,10 +222,10 @@ export default function TicketDetail() {
 
           {/* Accord propriétaire */}
           {ticket.status === "validation_proprio" && selectedQuote && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-warning">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-warning">
               <CardHeader className="pb-2"><CardTitle className="text-sm">Accord propriétaire</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <div className="p-3 bg-muted rounded-lg">
+                <div className="p-3 bg-muted rounded-[4px]">
                   <p className="font-medium text-sm">{selectedQuote.artisanNom}</p>
                   <p className="text-xs text-muted-foreground">{selectedQuote.description}</p>
                   <p className="text-sm font-semibold mt-1">{selectedQuote.montant} € · {selectedQuote.delai}</p>
@@ -342,7 +237,7 @@ export default function TicketDetail() {
                 </Badge>
 
                 {/* Email envoyé au propriétaire */}
-                <Card className="border border-border bg-muted/50">
+                <Card className="bg-muted/50">
                   <CardContent className="p-3 space-y-2">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Mail className="h-3.5 w-3.5" />
@@ -362,14 +257,9 @@ export default function TicketDetail() {
 
                 {/* Réponse du propriétaire */}
                 {ticket.validationStatus === "en_attente" && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Clock className="h-3.5 w-3.5 animate-spin" />
-                      <span>En attente de la réponse du propriétaire…</span>
-                    </div>
-                    <Button onClick={() => ctx.updateTicket(ticket.id, { status: "artisan_contact", validationStatus: "approuve" })} className="w-full">
-                      <ArrowRight className="h-4 w-4 mr-2" /> Approuver et continuer
-                    </Button>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5 animate-spin" />
+                    <span>En attente de la réponse du propriétaire…</span>
                   </div>
                 )}
                 {ticket.validationStatus === "approuve" && (
@@ -406,39 +296,45 @@ export default function TicketDetail() {
             </Card>
           )}
 
-          {/* Intervention — Confirmation de passage */}
+          {/* Intervention */}
           {ticket.status === "intervention" && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-primary">
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Confirmation de passage</CardTitle></CardHeader>
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-accent">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4" /> Intervention</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm">Artisan : <span className="font-medium">{artisan?.nom}</span></p>
-                {ticket.dateInterventionPrevue && <p className="text-sm">Date prévue : <span className="font-medium">{ticket.dateInterventionPrevue}</span></p>}
-                <p className="text-sm font-medium">L'artisan est-il bien intervenu ?</p>
-                <div className="flex gap-3">
-                  <Button onClick={() => ctx.confirmPassage(ticket.id, true)} className="flex-1">
-                    <CheckCircle2 className="h-4 w-4 mr-2" /> Oui, confirmé
-                  </Button>
-                  <Button onClick={() => ctx.confirmPassage(ticket.id, false)} variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/5">
-                    <XCircle className="h-4 w-4 mr-2" /> Non, pas intervenu
-                  </Button>
+                {selectedQuote && <p className="text-sm">Devis validé : <span className="font-medium">{selectedQuote.montant} €</span></p>}
+                {selectedQuote && !needsOwnerApproval(selectedQuote.montant) && ticket.validationStatus === "approuve" && (
+                  <Badge className="bg-success/15 text-success border-0">Validé automatiquement (sous le seuil de délégation)</Badge>
+                )}
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">Date d'intervention prévue</label>
+                  <Input
+                    type="date"
+                    value={ticket.dateInterventionPrevue || ""}
+                    onChange={e => ctx.updateTicket(ticket.id, { dateInterventionPrevue: e.target.value })}
+                  />
                 </div>
+                <Button onClick={() => ctx.updateTicket(ticket.id, { status: "confirmation_passage" })} className="w-full"
+                  disabled={!ticket.dateInterventionPrevue}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" /> Marquer l'intervention comme réalisée
+                </Button>
               </CardContent>
             </Card>
           )}
 
           {/* Confirmation passage */}
           {ticket.status === "confirmation_passage" && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-primary">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-primary">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Confirmation de passage</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm">Artisan : <span className="font-medium">{artisan?.nom}</span></p>
                 {ticket.dateInterventionPrevue && <p className="text-sm">Date prévue : <span className="font-medium">{ticket.dateInterventionPrevue}</span></p>}
                 <p className="text-sm font-medium">L'artisan est-il bien intervenu ?</p>
                 <div className="flex gap-3">
-                  <Button onClick={() => ctx.confirmPassage(ticket.id, true)} className="flex-1">
+                  <Button onClick={() => ctx.confirmPassage(ticket.id, true)} className="flex-1 bg-success hover:bg-success/90">
                     <CheckCircle2 className="h-4 w-4 mr-2" /> Oui, confirmé
                   </Button>
-                  <Button onClick={() => ctx.confirmPassage(ticket.id, false)} variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/5">
+                  <Button onClick={() => ctx.confirmPassage(ticket.id, false)} variant="destructive" className="flex-1">
                     <XCircle className="h-4 w-4 mr-2" /> Non, pas intervenu
                   </Button>
                 </div>
@@ -448,68 +344,31 @@ export default function TicketDetail() {
 
           {/* Facturation */}
           {ticket.status === "facturation" && ticket.facture && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-muted-foreground">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-muted-foreground">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" /> Facture</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <div className="p-3 bg-muted rounded-lg space-y-1 text-sm">
+                <div className="p-3 bg-muted rounded-[4px] space-y-1 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Réf.</span><span className="font-mono">{ticket.facture.refFacture}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Montant</span><span className="font-semibold">{ticket.facture.montant} €</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Prestation</span><span>{ticket.facture.prestation}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Artisan</span><span>{artisan?.nom}</span></div>
                   <Separator className="my-2" />
                   <div className="flex justify-between"><span className="text-muted-foreground">Responsable paiement</span>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="outline" className="border-0 bg-primary/10 text-primary text-[10px]">
                       {ticket.responsabilite === "locataire" ? ticket.locataire.nom : ticket.bien.proprietaire}
                     </Badge>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {!factureSent ? (
-                    <Button variant="outline" className="flex-1" onClick={() => {
-                      if (!settings.accountant_email) {
-                        updateSettings({ accountant_email: fallbackAccountantEmail });
-                        setEmailDraft(fallbackAccountantEmail);
-                      }
-                      setFactureSent(true);
-                      toast({ title: "Facture envoyée", description: `Envoyée à ${accountantEmail}` });
-                    }}>
-                      <Mail className="h-4 w-4 mr-2" /> Envoyer au comptable
-                    </Button>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center gap-2 h-10 rounded-md border bg-success/10 text-success text-sm font-medium">
-                      <CheckCircle2 className="h-4 w-4" /> Envoyée à {accountantEmail}
-                    </div>
-                  )}
-                  <Button onClick={() => ctx.validateFacture(ticket.id)} className="flex-1">
-                    <CheckCircle2 className="h-4 w-4 mr-2" /> Valider et clôturer
-                  </Button>
-                </div>
-                {showEmailInput && (
-                  <div className="flex gap-2">
-                    <Input
-                      type="email"
-                      placeholder="Email du comptable"
-                      value={emailDraft}
-                      onChange={e => setEmailDraft(e.target.value)}
-                      className="flex-1 h-9 text-sm"
-                    />
-                    <Button size="sm" className="h-9" disabled={!emailDraft.includes("@")} onClick={() => {
-                      updateSettings({ accountant_email: emailDraft });
-                      setShowEmailInput(false);
-                      setFactureSent(true);
-                      toast({ title: "Facture envoyée", description: `Envoyée à ${emailDraft}` });
-                    }}>
-                      <Send className="h-3.5 w-3.5 mr-1" /> Envoyer
-                    </Button>
-                  </div>
-                )}
+                <Button onClick={() => ctx.validateFacture(ticket.id)} className="w-full">
+                  <CheckCircle2 className="h-4 w-4 mr-2" /> Valider la facturation
+                </Button>
               </CardContent>
             </Card>
           )}
 
           {/* Clôture */}
           {ticket.status === "cloture" && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-success">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-success">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-success" /> Dossier clôturé</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p><span className="text-muted-foreground">Problème :</span> {ticket.description}</p>
@@ -531,15 +390,15 @@ export default function TicketDetail() {
 
           {/* Contact syndic */}
           {ticket.status === "contact_syndic" && ticket.syndic && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-orange-400">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-orange-400">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4 text-orange-600" /> Contact syndic</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg text-sm space-y-1">
+                <div className="p-3 bg-orange-50 rounded-[4px] text-sm space-y-1">
                   <p className="font-medium">{ticket.syndic.nom}</p>
                   <p className="text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> {ticket.syndic.email}</p>
                   <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> {ticket.syndic.telephone}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">Claro va envoyer un mail au syndic avec la description du problème.</p>
+                <p className="text-xs text-muted-foreground">L'IA va envoyer un mail au syndic avec la description du problème.</p>
                 <Button onClick={() => ctx.contactSyndic(ticket.id)} className="w-full bg-orange-600 hover:bg-orange-700">
                   <Send className="h-4 w-4 mr-2" /> Envoyer au syndic
                 </Button>
@@ -549,10 +408,10 @@ export default function TicketDetail() {
 
           {/* Relance syndic */}
           {ticket.status === "relance_syndic" && ticket.syndic && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-orange-400">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-orange-400">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><RefreshCw className="h-4 w-4 text-orange-600" /> Relance syndic</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg text-sm">
+                <div className="p-3 bg-orange-50 rounded-[4px] text-sm">
                   <p className="font-medium">{ticket.syndic.nom}</p>
                   <p className="text-xs text-muted-foreground mt-1">En attente de réponse depuis le {ticket.dateCreation}</p>
                 </div>
@@ -579,11 +438,11 @@ export default function TicketDetail() {
 
           {/* Escalade syndic */}
           {ticket.status === "escalade_syndic" && ticket.syndic && (
-            <Card className="border-0 shadow-sm border-l-4 border-l-red-500">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] border-l-4 border-l-red-500">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Gavel className="h-4 w-4 text-red-600" /> Escalade syndic</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <Badge className="bg-red-100 text-red-700 border-0">Escalade : recommandation de mise en demeure</Badge>
-                <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-lg text-sm space-y-1">
+                <div className="p-3 bg-red-50 rounded-[4px] text-sm space-y-1">
                   <p className="font-medium">{ticket.syndic.nom} — aucune réponse</p>
                   <p className="text-xs text-muted-foreground">{ticket.syndicRelances?.length || 0} relances envoyées sans réponse</p>
                 </div>
@@ -610,7 +469,7 @@ export default function TicketDetail() {
 
           {/* Notes */}
           {ticket.notes.length > 0 && (
-            <Card className="border-0 shadow-sm">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
               <CardHeader className="pb-2"><CardTitle className="text-sm">Notes</CardTitle></CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -629,29 +488,29 @@ export default function TicketDetail() {
         {/* Right sidebar */}
         <div className="space-y-4">
           {ticket.responsabilite && (
-            <Card className="border-0 shadow-sm bg-primary/5">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] bg-primary/5">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Shield className="h-4 w-4" /> Diagnostic</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Catégorie</span>
-                  <Badge variant="outline" className="border-0 bg-primary/10 text-primary text-[10px]">{categoryLabels[ticket.categorie]}</Badge>
+                  <Badge variant="secondary" className="text-[10px]">{categoryLabels[ticket.categorie]}</Badge>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Responsabilité</span>
-                  <Badge variant="secondary" className="text-[10px]">{responsabiliteLabels[ticket.responsabilite]}</Badge>
+                  <Badge variant="outline" className="border-0 bg-primary/10 text-primary text-[10px]">{responsabiliteLabels[ticket.responsabilite]}</Badge>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Priorité</span>
-                  <Badge variant="outline" className={`border-0 text-[10px] font-medium ${priorityColors[ticket.priorite]}`}>
-                    {priorityLabels[ticket.priorite]}
-                  </Badge>
-                </div>
+                {ticket.urgence && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Urgence</span>
+                    <Badge className="bg-destructive text-destructive-foreground text-[10px]">Oui</Badge>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
 
           {ticket.syndic && (
-            <Card className="border-0 shadow-sm bg-orange-50 dark:bg-orange-950/20">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] bg-orange-50">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4 text-orange-600" /> Syndic</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p className="font-medium">{ticket.syndic.nom}</p>
@@ -668,7 +527,7 @@ export default function TicketDetail() {
             </Card>
           )}
 
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
             <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><User className="h-4 w-4" /> Locataire</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <p className="font-medium">{ticket.locataire.nom}</p>
@@ -676,7 +535,7 @@ export default function TicketDetail() {
               <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3.5 w-3.5" />{ticket.locataire.email}</div>
             </CardContent>
           </Card>
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
             <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Home className="h-4 w-4" /> Bien</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex items-start gap-2"><MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5" /><div><p>{ticket.bien.adresse}</p><p className="text-muted-foreground">{ticket.bien.lot}</p></div></div>
@@ -688,7 +547,7 @@ export default function TicketDetail() {
             </CardContent>
           </Card>
           {artisan && (
-            <Card className="border-0 shadow-sm">
+            <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Wrench className="h-4 w-4" /> Artisan</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p className="font-medium">{artisan.nom}</p>

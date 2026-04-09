@@ -15,18 +15,18 @@ export default function Cloture() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-xl font-bold">Clôture</h1>
+        <h1 className="text-xl font-bold font-display">Clôture</h1>
         <p className="text-sm text-muted-foreground">Dossiers terminés et archivés</p>
       </div>
       {filtered.length === 0 ? (
-        <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun dossier à clôturer</CardContent></Card>
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="py-12 text-center text-muted-foreground">Aucun dossier à clôturer</CardContent></Card>
       ) : (
         <div className="space-y-4">
           {filtered.map(t => {
             const artisan = t.artisanId ? getArtisan(t.artisanId) : null;
             const quote = t.quotes.find(q => q.selected);
             return (
-              <Card key={t.id} className="border-0 shadow-sm">
+              <Card key={t.id} className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <div>
