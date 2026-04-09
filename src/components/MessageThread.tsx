@@ -21,7 +21,7 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
   };
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <MessageSquare className="h-4 w-4" /> Échanges avec {artisanNom}
@@ -33,7 +33,7 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
             <p className="text-xs text-muted-foreground text-center py-4">Aucun message</p>
           )}
           {messages.map(msg => (
-            <div key={msg.id} className={`p-2.5 rounded-lg text-sm ${msg.from === "agence" ? "bg-primary/10 ml-4" : "bg-muted mr-4"}`}>
+            <div key={msg.id} className={`p-2.5 rounded-[4px] text-sm ${msg.from === "agence" ? "bg-primary/10 ml-4" : "bg-muted mr-4"}`}>
               <div className="flex justify-between mb-0.5">
                 <span className="text-[10px] font-medium text-muted-foreground">
                   {msg.from === "agence" ? "Vous" : artisanNom}

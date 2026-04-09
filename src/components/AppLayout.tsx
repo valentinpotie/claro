@@ -15,12 +15,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center border-b bg-card px-4 gap-4 shrink-0">
+          <header className="h-14 flex items-center bg-card px-4 gap-4 shrink-0">
             <SidebarTrigger className="shrink-0" />
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Rechercher un ticket, locataire, bien..." className="pl-9 h-9 bg-secondary border-0" />
+                <Input placeholder="Rechercher un ticket, locataire, bien..." className="pl-9 h-9 bg-muted" />
               </div>
             </div>
             <div className="ml-auto flex items-center gap-2">

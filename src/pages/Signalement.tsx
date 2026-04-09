@@ -28,9 +28,9 @@ export default function Signalement() {
   };
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-xl font-bold">Nouveau signalement</h1>
+      <h1 className="text-xl font-bold font-display">Nouveau signalement</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Problème signalé</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2"><Label>Titre *</Label><Input value={form.titre} onChange={e => set("titre", e.target.value)} placeholder="Ex: Fuite sous évier cuisine" /></div>
@@ -49,13 +49,13 @@ export default function Signalement() {
                 </Select>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+            <div className="flex items-center gap-3 p-3 rounded-[4px] bg-destructive/5">
               <AlertTriangle className="h-4 w-4 text-destructive shrink-0" /><Label className="text-sm flex-1">Urgence ?</Label>
               <Switch checked={form.urgence} onCheckedChange={v => set("urgence", v)} />
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Locataire</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -65,7 +65,7 @@ export default function Signalement() {
             <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.locataireEmail} onChange={e => set("locataireEmail", e.target.value)} /></div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Bien concerné</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">

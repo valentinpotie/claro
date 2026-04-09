@@ -16,13 +16,13 @@ export default function Planification() {
   const [activeTicket, setActiveTicket] = useState<string | null>(null);
   return (
     <div className="space-y-6 max-w-5xl">
-      <div><h1 className="text-xl font-bold">Rendez-vous artisan</h1><p className="text-sm text-muted-foreground">Synchronisation automatique artisan / locataire</p></div>
-      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente</CardContent></Card> :
+      <div><h1 className="text-xl font-bold font-display">Rendez-vous artisan</h1><p className="text-sm text-muted-foreground">Synchronisation automatique artisan / locataire</p></div>
+      {filtered.length === 0 ? <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="py-12 text-center text-muted-foreground">Aucun ticket en attente</CardContent></Card> :
       filtered.map(t => {
         const artisan = t.artisanId ? getArtisan(t.artisanId) : null;
         const isActive = activeTicket === t.id;
         return (
-          <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4">
+          <Card key={t.id} className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
                 <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
@@ -39,7 +39,7 @@ export default function Planification() {
                 <TabsContent value="artisan"><AvailabilityCalendar title={`Créneaux ${artisan?.nom || "artisan"}`} selectedSlots={t.disponibilitesArtisan} onSlotsChange={s => setDisponibilites(t.id, "artisan", s)} highlightSlots={t.disponibilitesLocataire} /></TabsContent>
                 <TabsContent value="locataire"><AvailabilityCalendar title={`Créneaux ${t.locataire.nom}`} selectedSlots={t.disponibilitesLocataire} onSlotsChange={s => setDisponibilites(t.id, "locataire", s)} highlightSlots={t.disponibilitesArtisan} /></TabsContent>
               </Tabs>
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-muted rounded-[4px]">
                 <span className="text-xs text-muted-foreground">Artisan: {t.disponibilitesArtisan.length} · Locataire: {t.disponibilitesLocataire.length}</span>
                 <Button size="sm" onClick={() => matchAndConfirm(t.id)} disabled={t.disponibilitesArtisan.length === 0 || t.disponibilitesLocataire.length === 0}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Trouver créneau</Button>
               </div>

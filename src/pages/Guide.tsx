@@ -6,42 +6,42 @@ export default function Guide() {
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold">Guide de démo & entretien discovery</h1>
+        <h1 className="text-2xl font-bold font-display">Guide de démo & entretien discovery</h1>
         <p className="text-sm text-muted-foreground">Scénario complet, questions d'entretien et approche pricing</p>
       </div>
 
       {/* Scénario de démo */}
-      <Card className="border-0 shadow-sm">
+      <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> Scénario de démo complet (15 min)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <div className="space-y-3">
-            <div className="bg-muted rounded-lg p-4">
+            <div className="bg-muted rounded-[4px] p-4">
               <p className="font-semibold mb-1">1. Accroche (2 min) — Dashboard</p>
               <p className="text-muted-foreground">"Imaginez que c'est lundi matin. Vous ouvrez SinistreFlow et vous voyez immédiatement vos 6 dossiers ouverts, dont 2 urgents. Pas besoin de chercher dans vos emails ou votre tableur."</p>
               <p className="mt-2 font-medium text-primary">→ Observer la réaction : hochement de tête, soupir de reconnaissance ?</p>
             </div>
 
-            <div className="bg-muted rounded-lg p-4">
+            <div className="bg-muted rounded-[4px] p-4">
               <p className="font-semibold mb-1">2. Signalement (3 min) — Formulaire</p>
               <p className="text-muted-foreground">"Un locataire vous appelle : fuite sous l'évier. En 30 secondes, vous créez le dossier. L'outil diagnostique automatiquement : catégorie plomberie, priorité haute (risque dégât des eaux), et trouve 3 artisans disponibles."</p>
               <p className="mt-2 font-medium text-primary">→ Mesurer l'intérêt pour l'automatisation du diagnostic</p>
             </div>
 
-            <div className="bg-muted rounded-lg p-4">
+            <div className="bg-muted rounded-[4px] p-4">
               <p className="font-semibold mb-1">3. Parcours complet (5 min) — Détail ticket</p>
               <p className="text-muted-foreground">"Prenons un dossier en cours : la panne de chaudière. L'artisan est trouvé, le devis envoyé au propriétaire, le RDV fixé à lundi. Tout est suivi dans un seul endroit."</p>
               <p className="mt-2 font-medium text-primary">→ Identifier les étapes où ils perdent le plus de temps</p>
             </div>
 
-            <div className="bg-muted rounded-lg p-4">
+            <div className="bg-muted rounded-[4px] p-4">
               <p className="font-semibold mb-1">4. Points de douleur (3 min) — Accord propriétaire + Artisans</p>
               <p className="text-muted-foreground">"L'accord propriétaire : en un clic, vous envoyez le devis. Relance automatique à 48h. Pour les artisans : votre carnet avec notes, disponibilité et historique."</p>
               <p className="mt-2 font-medium text-primary">→ Confirmer que l'accord propriétaire est bien le pain point #1</p>
             </div>
 
-            <div className="bg-muted rounded-lg p-4">
+            <div className="bg-muted rounded-[4px] p-4">
               <p className="font-semibold mb-1">5. ROI (2 min) — Facturation + Assurance</p>
               <p className="text-muted-foreground">"Facturation centralisée, suivi des paiements. Pour les cas assurance : toutes les pièces au même endroit, suivi de l'expertise, relances automatiques."</p>
               <p className="mt-2 font-medium text-primary">→ Quantifier le temps gagné en euros</p>
@@ -51,7 +51,7 @@ export default function Guide() {
       </Card>
 
       {/* Guide d'entretien */}
-      <Card className="border-0 shadow-sm">
+      <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5 text-primary" /> Guide d'entretien discovery</CardTitle>
         </CardHeader>
@@ -108,12 +108,12 @@ export default function Guide() {
       </Card>
 
       {/* Approche pricing */}
-      <Card className="border-0 shadow-sm">
+      <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Euro className="h-5 w-5 text-primary" /> Approche pricing (sans biaiser)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
-          <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
+          <div className="bg-accent/10 rounded-[4px] p-4">
             <p className="font-semibold mb-2">Méthode Van Westendorp (recommandée)</p>
             <p className="text-muted-foreground mb-3">Poser ces 4 questions dans l'ordre, APRÈS la démo, sans donner de prix :</p>
             <ol className="list-decimal ml-5 space-y-2 text-muted-foreground">
@@ -124,7 +124,7 @@ export default function Guide() {
             </ol>
           </div>
 
-          <div className="bg-muted rounded-lg p-4">
+          <div className="bg-muted rounded-[4px] p-4">
             <p className="font-semibold mb-2">Questions complémentaires ROI</p>
             <ul className="list-disc ml-5 space-y-1 text-muted-foreground">
               <li>"Combien d'heures par semaine consacrez-vous à la gestion des sinistres ?"</li>
@@ -134,7 +134,7 @@ export default function Guide() {
             </ul>
           </div>
 
-          <div className="bg-muted rounded-lg p-4">
+          <div className="bg-muted rounded-[4px] p-4">
             <p className="font-semibold mb-2">⚠️ Pièges à éviter</p>
             <ul className="list-disc ml-5 space-y-1 text-muted-foreground">
               <li>Ne JAMAIS donner un prix avant de poser les questions</li>
@@ -145,7 +145,7 @@ export default function Guide() {
             </ul>
           </div>
 
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+          <div className="bg-primary/5 rounded-[4px] p-4">
             <p className="font-semibold mb-2">Signaux d'achat à observer</p>
             <ul className="list-disc ml-5 space-y-1 text-muted-foreground">
               <li>🟢 "On peut commencer quand ?" → Fort signal d'achat</li>

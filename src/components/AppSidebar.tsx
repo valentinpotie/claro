@@ -56,7 +56,7 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         {!collapsed ? (
           <div className="flex items-center gap-2">
-            <a href="/dashboard" className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
+            <a href="/dashboard" className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center">
               <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
             </a>
             <div>
@@ -65,7 +65,7 @@ export function AppSidebar() {
             </div>
           </div>
         ) : (
-          <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center mx-auto">
+          <div className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center mx-auto">
             <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
           </div>
         )}

@@ -15,18 +15,18 @@ export default function Validation() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-xl font-bold">Accord propriétaire</h1>
+        <h1 className="text-xl font-bold font-display">Accord propriétaire</h1>
         <p className="text-sm text-muted-foreground">
           {settings.always_ask_owner
             ? "Accord propriétaire requis pour tous les devis (règle agence)"
             : `Seuil de délégation : ${settings.delegation_threshold} €`}
         </p>
       </div>
-      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun devis en attente</CardContent></Card> :
+      {filtered.length === 0 ? <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="py-12 text-center text-muted-foreground">Aucun devis en attente</CardContent></Card> :
       filtered.map(t => {
         const quote = t.quotes.find(q => q.id === t.selectedQuoteId);
         return (
-          <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4 flex items-start justify-between">
+          <Card key={t.id} className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4 flex items-start justify-between">
             <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
               <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
               <p className="font-medium text-sm">{t.titre}</p>

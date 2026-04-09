@@ -11,11 +11,11 @@ export default function Settings() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-xl font-bold flex items-center gap-2"><SettingsIcon className="h-5 w-5" /> Paramètres</h1>
+        <h1 className="text-xl font-bold font-display flex items-center gap-2"><SettingsIcon className="h-5 w-5" /> Paramètres</h1>
         <p className="text-sm text-muted-foreground">Configuration des règles de gestion de l'agence</p>
       </div>
 
-      <Card className="border-0 shadow-sm">
+      <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2"><Shield className="h-4 w-4" /> Règles de gestion</CardTitle>
         </CardHeader>
@@ -44,7 +44,7 @@ export default function Settings() {
           </div>
 
           {/* Always ask owner */}
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+          <div className="flex items-start gap-3 p-3 rounded-[4px] bg-muted/50">
             <Checkbox
               id="always-ask"
               checked={settings.always_ask_owner}
@@ -103,7 +103,7 @@ export default function Settings() {
       </Card>
 
       {/* Summary */}
-      <Card className="border-0 shadow-sm bg-primary/5">
+      <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] bg-primary/5">
         <CardContent className="p-4 text-sm space-y-1">
           <p className="font-medium">Résumé des règles actives</p>
           {settings.always_ask_owner ? (

@@ -115,26 +115,26 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <h1 className="text-xl font-bold">Tableau de bord</h1>
+      <h1 className="text-xl font-bold font-display">Tableau de bord</h1>
 
       {/* Auto-detected signalements */}
       {autoSignalements.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
-            <Mail className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-[4px] bg-indigo-50">
+            <Mail className="h-5 w-5 text-indigo-600 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">{autoSignalements.length} nouveau{autoSignalements.length > 1 ? "x" : ""} signalement{autoSignalements.length > 1 ? "s" : ""} détecté{autoSignalements.length > 1 ? "s" : ""}</p>
-              <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70">Analysés automatiquement par l'IA depuis les mails entrants</p>
+              <p className="text-sm font-medium text-indigo-900">{autoSignalements.length} nouveau{autoSignalements.length > 1 ? "x" : ""} signalement{autoSignalements.length > 1 ? "s" : ""} détecté{autoSignalements.length > 1 ? "s" : ""}</p>
+              <p className="text-xs text-indigo-600/70">Analysés automatiquement par l'IA depuis les mails entrants</p>
             </div>
             <Sparkles className="h-4 w-4 text-indigo-400" />
           </div>
 
           {autoSignalements.map(s => (
-            <Card key={s.id} className={`border-0 shadow-sm transition-all duration-400 ${dismissing.has(s.id) ? "opacity-0 scale-95 h-0 overflow-hidden" : "opacity-100"}`}>
+            <Card key={s.id} className={`border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)] transition-all duration-400 ${dismissing.has(s.id) ? "opacity-0 scale-95 h-0 overflow-hidden" : "opacity-100"}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
-                    <Brain className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <Brain className="h-4 w-4 text-indigo-600" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{s.titre}</p>
@@ -163,15 +163,15 @@ export default function Dashboard() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Ouverts</p><p className="text-2xl font-bold">{ouverts}</p></div><Clock className="h-8 w-8 text-primary/20" /></div></CardContent></Card>
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Urgents</p><p className="text-2xl font-bold text-destructive">{urgents}</p></div><AlertTriangle className="h-8 w-8 text-destructive/20" /></div></CardContent></Card>
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Interventions</p><p className="text-2xl font-bold">{interventions}</p></div><HardHat className="h-8 w-8 text-accent/20" /></div></CardContent></Card>
-        <Card className="border-0 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Clôturés</p><p className="text-2xl font-bold text-success">{clotures}</p></div><CheckCircle2 className="h-8 w-8 text-success/20" /></div></CardContent></Card>
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Ouverts</p><p className="text-2xl font-bold font-display">{ouverts}</p></div><Clock className="h-8 w-8 text-primary/20" /></div></CardContent></Card>
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Urgents</p><p className="text-2xl font-bold font-display text-destructive">{urgents}</p></div><AlertTriangle className="h-8 w-8 text-destructive/20" /></div></CardContent></Card>
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Interventions</p><p className="text-2xl font-bold font-display">{interventions}</p></div><HardHat className="h-8 w-8 text-accent/20" /></div></CardContent></Card>
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Clôturés</p><p className="text-2xl font-bold font-display text-success">{clotures}</p></div><CheckCircle2 className="h-8 w-8 text-success/20" /></div></CardContent></Card>
       </div>
 
       {/* Pipeline + Recent tickets */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-0 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm">Pipeline</CardTitle></CardHeader><CardContent><div className="space-y-2">
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardHeader className="pb-2"><CardTitle className="text-sm">Pipeline</CardTitle></CardHeader><CardContent><div className="space-y-2">
           {statusCounts.map(s => (
             <div key={s.key} className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors" onClick={() => navigate(routeMap[s.key] || "/tickets")}>
               <Badge variant="outline" className={`status-badge border-0 w-24 justify-center ${statusColors[s.key]}`}>{s.label}</Badge>
@@ -180,7 +180,7 @@ export default function Dashboard() {
             </div>
           ))}
         </div></CardContent></Card>
-        <Card className="border-0 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm">Tickets récents</CardTitle></CardHeader><CardContent><div className="space-y-2">
+        <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardHeader className="pb-2"><CardTitle className="text-sm">Tickets récents</CardTitle></CardHeader><CardContent><div className="space-y-2">
           {recentTickets.map(t => (
             <div key={t.id} className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded p-1.5 -mx-1.5 transition-colors" onClick={() => navigate(`/tickets/${t.id}`)}>
               <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{t.titre}</p><p className="text-[10px] text-muted-foreground">{t.reference} · {t.locataire.nom}</p></div>

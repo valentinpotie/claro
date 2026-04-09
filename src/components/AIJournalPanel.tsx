@@ -22,9 +22,9 @@ export function AIJournalPanel() {
   return (
     <Sheet open={showJournal} onOpenChange={setShowJournal}>
       <SheetContent className="w-[420px] sm:w-[480px] p-0 flex flex-col">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b bg-primary/5">
+        <SheetHeader className="px-6 pt-6 pb-4 bg-primary/5">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
+            <div className="h-10 w-10 rounded-[4px] bg-primary flex items-center justify-center">
               <Bot className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
@@ -42,7 +42,7 @@ export function AIJournalPanel() {
               const Icon = typeIcons[entry.type] || Zap;
               return (
                 <div key={entry.id} className="flex gap-3 animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${entry.status === "done" ? "bg-success/15" : "bg-primary/10"}`}>
+                  <div className={`h-8 w-8 rounded-[4px] flex items-center justify-center shrink-0 ${entry.status === "done" ? "bg-success/15" : "bg-primary/10"}`}>
                     {entry.status === "in_progress" ? (
                       <Loader2 className="h-4 w-4 text-primary animate-spin" />
                     ) : (

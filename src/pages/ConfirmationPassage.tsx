@@ -12,12 +12,12 @@ export default function ConfirmationPassage() {
   const filtered = tickets.filter(t => t.status === "confirmation_passage");
   return (
     <div className="space-y-6 max-w-4xl">
-      <div><h1 className="text-xl font-bold">Confirmation passage</h1><p className="text-sm text-muted-foreground">Confirmez si l'artisan est bien intervenu</p></div>
-      {filtered.length === 0 ? <Card className="border-0 shadow-sm"><CardContent className="py-12 text-center text-muted-foreground">Aucun passage à confirmer</CardContent></Card> :
+      <div><h1 className="text-xl font-bold font-display">Confirmation passage</h1><p className="text-sm text-muted-foreground">Confirmez si l'artisan est bien intervenu</p></div>
+      {filtered.length === 0 ? <Card className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="py-12 text-center text-muted-foreground">Aucun passage à confirmer</CardContent></Card> :
       filtered.map(t => {
         const artisan = t.artisanId ? getArtisan(t.artisanId) : null;
         return (
-          <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4 flex items-start justify-between">
+          <Card key={t.id} className="border-0 shadow-[0_20px_60px_-10px_hsl(180_5%_11%/0.06)]"><CardContent className="p-4 flex items-start justify-between">
             <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
               <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
               <p className="font-medium text-sm">{t.titre}</p>

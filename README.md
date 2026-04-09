@@ -71,3 +71,24 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Read-only DB inspection (Supabase/Postgres)
+
+You can inspect your database schema and sample rows from the terminal with a read-only user.
+
+1. Create a read-only Postgres user in Supabase.
+2. Copy `.env.db.example` values into your local env (`.env.local` or shell exports).
+3. Run one of these commands:
+
+```sh
+# Inspect all tables in the selected schema
+DB_READONLY_URL="postgresql://..." npm run db:inspect
+
+# Inspect one table only
+DB_READONLY_URL="postgresql://..." npm run db:inspect:table agency_settings
+```
+
+Optional variables:
+
+- `DB_SCHEMA` (default: `public`)
+- `DB_SAMPLE_LIMIT` (default: `5`)
