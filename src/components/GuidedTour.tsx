@@ -29,7 +29,7 @@ export function GuidedTour({ onHighlight }: { onHighlight?: (active: boolean) =>
 
   if (!visible) {
     return (
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setVisible(true)}>
+      <Button size="sm" className="gap-1.5" onClick={() => setVisible(true)}>
         <Sparkles className="h-3.5 w-3.5" /> Tutoriel
       </Button>
     );
@@ -38,19 +38,22 @@ export function GuidedTour({ onHighlight }: { onHighlight?: (active: boolean) =>
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/25 animate-in fade-in" onClick={close} />
-      <div className="fixed bottom-6 right-6 z-[60] w-[340px] rounded-xl border bg-card shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in">
+      <div className="fixed bottom-6 right-6 z-[60] w-[340px] rounded-[4px] border border-border/60 bg-card shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in">
         <div className="px-4 py-3 border-b bg-primary/5 flex items-center justify-between">
           <span className="text-xs font-semibold">Visite guidée</span>
-          <button onClick={close} className="h-6 w-6 rounded-md hover:bg-muted flex items-center justify-center">
+          <button onClick={close} className="h-6 w-6 rounded-[4px] hover:bg-muted flex items-center justify-center">
             <X className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
         </div>
         <div className="p-4 space-y-2">
           <p className="text-sm font-semibold">Vos signalements arrivent automatiquement</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">Chaque email de locataire est détecté et analysé par l’IA. Catégorie, priorité et responsabilité sont pré-remplis. Validez ou corrigez en un clic.</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">Chaque email de locataire est détecté et analysé par l'IA. Catégorie, priorité et responsabilité sont pré-remplis. Validez ou corrigez en un clic.</p>
         </div>
-        <div className="px-4 py-3 border-t bg-muted/30 flex justify-end">
-          <Button size="sm" onClick={close} className="h-7 text-xs">Compris</Button>
+        <div className="px-4 py-3 border-t bg-muted/30 flex items-center justify-between">
+          <button onClick={close} className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Passer</button>
+          <Button size="sm" onClick={close} className="h-7 text-xs">
+            Compris
+          </Button>
         </div>
       </div>
     </>

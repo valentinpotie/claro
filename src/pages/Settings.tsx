@@ -3,13 +3,12 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { TicketPriority, priorityLabels, EmailTemplate } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Euro, Bell, Shield, ListFilter, Mail, Wrench, User, Home } from "lucide-react";
+import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home } from "lucide-react";
 
 const allPriorities: TicketPriority[] = ["urgente", "haute", "normale", "basse"];
 const templateVariables = ["{{nom_agence}}", "{{adresse}}", "{{lot}}", "{{categorie}}", "{{description}}", "{{nom_artisan}}", "{{telephone_artisan}}", "{{nom_locataire}}", "{{telephone_locataire}}", "{{nom_proprietaire}}", "{{montant}}", "{{date_intervention}}"];
@@ -36,14 +35,8 @@ export default function Settings() {
             </div>
             {editingTemplate === t.id ? (
               <div className="space-y-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Objet</Label>
-                  <Input value={t.subject} onChange={e => updateTemplate(t.id, { subject: e.target.value })} className="text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Corps</Label>
-                  <Textarea value={t.body} onChange={e => updateTemplate(t.id, { body: e.target.value })} rows={6} className="text-sm font-mono" />
-                </div>
+                <Input value={t.subject} onChange={e => updateTemplate(t.id, { subject: e.target.value })} className="text-sm" placeholder="Objet du mail" />
+                <Textarea value={t.body} onChange={e => updateTemplate(t.id, { body: e.target.value })} rows={6} className="text-sm font-mono" placeholder="Corps du mail" />
                 <div className="flex flex-wrap gap-1">
                   {templateVariables.map(v => (
                     <Badge key={v} variant="outline" className="text-[9px] font-mono cursor-pointer hover:bg-muted" onClick={() => {
@@ -79,35 +72,30 @@ export default function Settings() {
           <CardTitle className="text-sm flex items-center gap-2"><Shield className="h-4 w-4" /> Règles de gestion</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="threshold" className="flex items-center gap-2">
-              <Euro className="h-3.5 w-3.5" /> Seuil de délégation
-            </Label>
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <Input id="threshold" type="number" min={0} step={50} value={settings.delegation_threshold} onChange={e => updateSettings({ delegation_threshold: Number(e.target.value) })} className="w-32" disabled={settings.always_ask_owner} />
+              <Input id="threshold" type="number" min={0} step={50} value={settings.delegation_threshold} onChange={e => updateSettings({ delegation_threshold: Number(e.target.value) })} className="w-32" disabled={settings.always_ask_owner} placeholder="Seuil (€)" />
               <span className="text-sm text-muted-foreground">€</span>
             </div>
-            <p className="text-xs text-muted-foreground">En dessous de ce montant, le gestionnaire peut valider les travaux sans accord du propriétaire.</p>
+            <p className="text-xs text-muted-foreground">Seuil de délégation — en dessous, le gestionnaire peut valider sans accord propriétaire.</p>
           </div>
           <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
             <Checkbox id="always-ask" checked={settings.always_ask_owner} onCheckedChange={checked => updateSettings({ always_ask_owner: checked === true })} className="mt-0.5" />
             <div>
-              <Label htmlFor="always-ask" className="text-sm font-medium cursor-pointer">Toujours demander l'accord du propriétaire quel que soit le montant</Label>
+              <label htmlFor="always-ask" className="text-sm font-medium cursor-pointer">Toujours demander l'accord du propriétaire quel que soit le montant</label>
               <p className="text-xs text-muted-foreground mt-0.5">Si activé, le seuil de délégation est ignoré et l'étape « Accord propriétaire » s'affiche systématiquement.</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="delay" className="flex items-center gap-2"><Bell className="h-3.5 w-3.5" /> Délai d'escalade</Label>
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <Input id="delay" type="number" min={1} value={settings.escalation_delay_days} onChange={e => updateSettings({ escalation_delay_days: Number(e.target.value) })} className="w-24" />
+              <Input id="delay" type="number" min={1} value={settings.escalation_delay_days} onChange={e => updateSettings({ escalation_delay_days: Number(e.target.value) })} className="w-24" placeholder="Délai" />
               <span className="text-sm text-muted-foreground">jours</span>
             </div>
-            <p className="text-xs text-muted-foreground">Si le propriétaire ne répond pas après ce délai et {settings.escalation_reminders_count} relances, le gestionnaire peut valider en autonomie.</p>
+            <p className="text-xs text-muted-foreground">Délai d'escalade — si le propriétaire ne répond pas après ce délai et {settings.escalation_reminders_count} relances.</p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="reminders" className="flex items-center gap-2"><Bell className="h-3.5 w-3.5" /> Nombre de relances avant escalade</Label>
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <Input id="reminders" type="number" min={1} value={settings.escalation_reminders_count} onChange={e => updateSettings({ escalation_reminders_count: Number(e.target.value) })} className="w-24" />
+              <Input id="reminders" type="number" min={1} value={settings.escalation_reminders_count} onChange={e => updateSettings({ escalation_reminders_count: Number(e.target.value) })} className="w-24" placeholder="Relances" />
               <span className="text-sm text-muted-foreground">relances</span>
             </div>
           </div>
@@ -140,11 +128,8 @@ export default function Settings() {
           <CardTitle className="text-sm flex items-center gap-2"><Euro className="h-4 w-4" /> Comptabilité</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="accountant-email" className="text-xs">Email du comptable</Label>
-            <Input id="accountant-email" type="email" placeholder="comptable@agence.fr" value={settings.accountant_email || ""} onChange={e => updateSettings({ accountant_email: e.target.value })} />
-            <p className="text-xs text-muted-foreground">Les factures validées pourront être envoyées directement à cette adresse.</p>
-          </div>
+          <Input id="accountant-email" type="email" placeholder="Email du comptable (ex : comptable@agence.fr)" value={settings.accountant_email || ""} onChange={e => updateSettings({ accountant_email: e.target.value })} />
+          <p className="text-xs text-muted-foreground">Les factures validées pourront être envoyées directement à cette adresse.</p>
         </CardContent>
       </Card>
 

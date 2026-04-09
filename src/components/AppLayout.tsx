@@ -15,12 +15,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center border-b bg-card px-4 gap-4 shrink-0">
+          <header className="h-14 flex items-center bg-card px-4 gap-4 shrink-0">
             <SidebarTrigger className="shrink-0" />
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Rechercher un ticket, locataire, bien..." className="pl-9 h-9 bg-secondary border-0" />
+                <Input placeholder="Rechercher un ticket, locataire, bien..." className="pl-9 h-9" />
               </div>
             </div>
             <div className="ml-auto flex items-center gap-2">
@@ -28,7 +28,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Bell className="h-4 w-4" />
                 <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-destructive rounded-full" />
               </Button>
-              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-xs font-medium text-primary-foreground">
+              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-secondary-foreground">
                 SM
               </div>
             </div>

@@ -12,7 +12,7 @@ interface Props {
 
 export function QuoteComparison({ quotes, onSelect, disabled }: Props) {
   if (quotes.length === 0) return (
-    <Card className="border-0 shadow-sm">
+    <Card className="border-0">
       <CardContent className="py-8 text-center text-sm text-muted-foreground">
         Aucun devis reçu pour le moment
       </CardContent>
@@ -22,14 +22,14 @@ export function QuoteComparison({ quotes, onSelect, disabled }: Props) {
   const minPrice = Math.min(...quotes.map(q => q.montant));
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="border-0">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm">Comparaison des devis ({quotes.length})</CardTitle>
+        <CardTitle className="text-sm font-display">Comparaison des devis ({quotes.length})</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
           {quotes.map(q => (
-            <div key={q.id} className={`p-3 rounded-lg border transition-colors ${q.selected ? "border-primary bg-primary/5" : "border-border"}`}>
+            <div key={q.id} className={`p-3 rounded-[4px] transition-colors ${q.selected ? "bg-primary/5" : "bg-muted"}`}>
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-medium text-sm flex items-center gap-2">

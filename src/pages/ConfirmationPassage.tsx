@@ -27,7 +27,7 @@ export default function ConfirmationPassage() {
               </div>
             </div>
             <div className="flex gap-2 shrink-0 ml-4">
-              <Button size="sm" className="bg-success hover:bg-success/90" onClick={() => confirmPassage(t.id, true)}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Oui</Button>
+              <Button size="sm" className="bg-success hover:bg-emerald-700" onClick={() => confirmPassage(t.id, true)}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Oui</Button>
               <Button size="sm" variant="destructive" onClick={() => confirmPassage(t.id, false)}><XCircle className="h-3.5 w-3.5 mr-1" /> Non</Button>
             </div>
           </CardContent></Card>

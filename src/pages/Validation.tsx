@@ -37,7 +37,7 @@ export default function Validation() {
               </Badge>
             </div>
             <div className="flex flex-col gap-2 shrink-0 ml-4">
-              <Button onClick={() => ownerRespond(t.id, true)} size="sm" className="bg-success hover:bg-success/90"><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approuver</Button>
+              <Button onClick={() => ownerRespond(t.id, true)} size="sm" className="bg-success hover:bg-emerald-700"><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approuver</Button>
               <Button onClick={() => ownerRespond(t.id, false)} size="sm" variant="destructive"><XCircle className="h-3.5 w-3.5 mr-1" /> Refuser</Button>
             </div>
           </CardContent></Card>

@@ -44,16 +44,16 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 cursor-pointer" onClick={() => navigate("/")}>
         {!collapsed ? (
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
+            <div className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center">
               <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-sidebar-foreground">Claro</h2>
+              <h2 className="text-sm font-bold font-display text-sidebar-foreground">Claro</h2>
               <p className="text-[10px] text-sidebar-muted">Gestion locative</p>
             </div>
           </div>
         ) : (
-          <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center mx-auto">
+          <div className="h-8 w-8 rounded-[4px] bg-sidebar-primary flex items-center justify-center mx-auto">
             <HardHat className="h-4 w-4 text-sidebar-primary-foreground" />
           </div>
         )}
@@ -66,7 +66,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4 space-y-3">
         {!collapsed && (
-          <div className="text-[10px] text-sidebar-muted border-t pt-3">
+          <div className="text-[10px] text-sidebar-muted pt-3">
             Agence Immobilière Durand<br />Gestionnaire: Sophie Martin
           </div>
         )}

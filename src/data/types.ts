@@ -152,10 +152,10 @@ export const priorityLabels: Record<TicketPriority, string> = {
 };
 
 export const priorityColors: Record<TicketPriority, string> = {
-  urgente: "bg-destructive/15 text-destructive",
-  haute: "bg-warning/15 text-warning",
-  normale: "bg-primary/10 text-primary",
-  basse: "bg-muted text-muted-foreground",
+  urgente: "bg-destructive/25 text-destructive",
+  haute: "bg-red-200/70 text-red-700",
+  normale: "bg-muted text-foreground",
+  basse: "bg-cyan-100/60 text-cyan-700",
 };
 
 export const categoryLabels: Record<TicketCategory, string> = {

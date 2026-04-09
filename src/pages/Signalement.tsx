@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { AlertTriangle, Send } from "lucide-react";
+import { AlertTriangle, Send, UploadCloud } from "lucide-react";
 
 export default function Signalement() {
   const { createTicket } = useTickets();
@@ -19,6 +19,7 @@ export default function Signalement() {
     urgence: false, locataireNom: "", locataireTel: "", locataireEmail: "",
     adresse: "", lot: "", proprietaire: "", telephoneProprio: "", emailProprio: "",
   });
+  const [attachments, setAttachments] = useState<File[]>([]);
   const set = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,9 +29,9 @@ export default function Signalement() {
   };
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-xl font-bold">Nouveau signalement</h1>
+      <h1 className="text-xl font-bold font-display">Nouveau signalement</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Problème signalé</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2"><Label>Titre *</Label><Input value={form.titre} onChange={e => set("titre", e.target.value)} placeholder="Ex: Fuite sous évier cuisine" /></div>
@@ -49,13 +50,35 @@ export default function Signalement() {
                 </Select>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+            <div className="flex items-center gap-3 p-3 rounded-[4px] bg-destructive/5 border border-destructive/20">
               <AlertTriangle className="h-4 w-4 text-destructive shrink-0" /><Label className="text-sm flex-1">Urgence ?</Label>
               <Switch checked={form.urgence} onCheckedChange={v => set("urgence", v)} />
             </div>
+
+            <div className="space-y-2">
+              <Label>Photos / fichiers</Label>
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-[4px] border border-input bg-background px-4 py-6 text-center transition-colors hover:bg-muted/40">
+                <UploadCloud className="h-5 w-5 text-muted-foreground mb-2" />
+                <span className="text-sm font-medium">Glisser-déposer ou cliquer pour ajouter</span>
+                <span className="text-xs text-muted-foreground mt-1">PNG, JPG, PDF, DOCX</span>
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setAttachments((prev) => [...prev, ...files]);
+                    e.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              {attachments.length > 0 && (
+                <p className="text-xs text-muted-foreground">{attachments.length} fichier(s) prêt(s) à être transmis avec le ticket.</p>
+              )}
+            </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Locataire</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -65,7 +88,7 @@ export default function Signalement() {
             <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.locataireEmail} onChange={e => set("locataireEmail", e.target.value)} /></div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0">
           <CardHeader className="pb-2"><CardTitle className="text-sm">Bien concerné</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
-import { statusLabels, statusColors, categoryLabels, TicketStatus } from "@/data/types";
+import { statusLabels, statusColors, categoryLabels, TicketStatus, responsabiliteLabels, priorityLabels } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ArrowRight, Calendar } from "lucide-react";
+import { Search, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function TicketsList() {
   const { tickets } = useTickets();
@@ -38,13 +39,28 @@ export default function TicketsList() {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-xs text-muted-foreground font-mono">{t.reference}</span>
                   <Badge variant="outline" className={`status-badge border-0 ${statusColors[t.status]}`}>{statusLabels[t.status]}</Badge>
-                  <Badge variant="secondary" className="text-[10px]">{categoryLabels[t.categorie]}</Badge>
+                  <Badge variant="outline" className="border-0 bg-primary/10 text-primary text-[10px]">Catégorie : {categoryLabels[t.categorie]}</Badge>
+                  <Badge variant="secondary" className="text-[10px]">Responsabilité : {responsabiliteLabels[t.responsabilite]}</Badge>
+                  <Badge
+                    variant="outline"
+                    className={`border-0 text-[10px] font-medium ${
+                      t.priorite === "urgente"
+                        ? "bg-destructive/20 text-destructive"
+                        : t.priorite === "haute"
+                          ? "bg-warning/25 text-warning"
+                          : t.priorite === "normale"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    Priorité : {priorityLabels[t.priorite]}
+                  </Badge>
                   {t.urgence && <Badge className="bg-destructive text-destructive-foreground text-[10px]">URGENT</Badge>}
                 </div>
                 <p className="font-medium text-sm">{t.titre}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{t.locataire.nom} · {t.bien.adresse} · {new Date(t.dateCreation).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.locataire.nom} · {t.bien.adresse} · {new Date(t.dateCreation).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
               </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Button size="sm" className="shrink-0">Accéder au ticket</Button>
             </CardContent>
           </Card>
         ))}
