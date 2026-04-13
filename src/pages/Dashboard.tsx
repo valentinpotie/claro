@@ -245,7 +245,7 @@ export default function Dashboard() {
   };
 
   const getTitle = (s: InboundSignalement) => s.ai_suggestion?.title ?? s.subject;
-  const getDescription = (s: InboundSignalement) => s.ai_suggestion?.ai_qualified_description ?? s.ai_suggestion?.ai_summary ?? null;
+  const getDescription = (s: InboundSignalement) => s.ai_suggestion?.ai_qualified_description || s.ai_suggestion?.ai_summary || null;
   const getCategory = (s: InboundSignalement) => normalizeCategory(s.ai_suggestion?.category);
   const getResponsibility = (s: InboundSignalement) => normalizeResponsibility(s.ai_suggestion?.responsibility);
   const getTenantName = (s: InboundSignalement) => s.ai_suggestion?.tenant_name ?? "";
