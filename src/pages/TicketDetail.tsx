@@ -378,7 +378,7 @@ export default function TicketDetail() {
                       <Clock className="h-3.5 w-3.5 animate-spin" />
                       <span>En attente de la réponse du propriétaire…</span>
                     </div>
-                    <Button onClick={() => ctx.updateTicket(ticket.id, { status: "contact_artisan", validationStatus: "approuve" })} className="w-full">
+                    <Button onClick={() => ctx.ownerRespond(ticket.id, true)} className="w-full">
                       <ArrowRight className="h-4 w-4 mr-2" /> Approuver et continuer
                     </Button>
                   </div>
