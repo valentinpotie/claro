@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useTickets } from "@/contexts/TicketContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { priorityLabels, priorityColors, responsabiliteLabels } from "@/data/types";
+import { responsabiliteLabels } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ export default function Facturation() {
         return (
           <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4 flex items-start justify-between">
             <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
-              <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
+              <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span>{t.urgence && <Badge className="bg-destructive text-destructive-foreground text-[10px]">URGENT</Badge>}</div>
               <p className="font-medium text-sm">{t.titre}</p>
               {t.facture && <div className="mt-2 p-3 bg-muted rounded-lg space-y-1 text-xs">
                 <div className="flex justify-between"><span className="text-muted-foreground"><FileText className="h-3 w-3 inline mr-1" />{t.facture.refFacture}</span><span className="font-semibold"><Euro className="h-3 w-3 inline" /> {t.facture.montant} €</span></div>

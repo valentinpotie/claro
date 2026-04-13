@@ -89,3 +89,54 @@
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
 }
+
+/* Google Places Autocomplete dropdown — match app design */
+.pac-container {
+  background-color: hsl(0 0% 100%);
+  border: 1px solid hsl(60 5% 90%);
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 16px -4px hsl(180 5% 11% / 0.12), 0 1px 4px -1px hsl(180 5% 11% / 0.06);
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  padding: 4px;
+  margin-top: 2px;
+}
+
+.pac-item {
+  padding: 6px 8px;
+  border-radius: 0.25rem;
+  border-top: none;
+  color: hsl(180 5% 11%);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+  background-color: hsl(60 5% 93%);
+}
+
+.pac-item-query {
+  font-size: 0.8125rem;
+  color: hsl(180 5% 11%);
+  padding-right: 4px;
+}
+
+.pac-matched {
+  font-weight: 600;
+}
+
+.pac-icon {
+  display: none;
+}
+
+.pac-secondary-text {
+  color: hsl(0 0% 42%);
+  font-size: 0.75rem;
+}
+
+.pac-container:after {
+  padding: 4px 8px 6px;
+  font-size: 0.6875rem;
+  color: hsl(0 0% 60%);
+}

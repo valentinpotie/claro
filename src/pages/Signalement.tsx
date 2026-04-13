@@ -1,20 +1,21 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
-import { categoryLabels, TicketCategory, TicketPriority } from "@/data/types";
+import { categoryLabels, TicketCategory } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Send, UploadCloud } from "lucide-react";
 
 export default function Signalement() {
   const { createTicket } = useTickets();
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    titre: "", description: "", categorie: "" as TicketCategory | "", priorite: "normale" as TicketPriority,
+    titre: "", description: "", categorie: "" as TicketCategory | "",
     urgence: false, locataireNom: "", locataireTel: "", locataireEmail: "",
     adresse: "", lot: "", proprietaire: "", telephoneProprio: "", emailProprio: "",
   });
@@ -23,7 +24,7 @@ export default function Signalement() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.titre || !form.categorie || !form.locataireNom) return;
-    const ticket = createTicket(form as any);
+    const ticket = createTicket({ ...form, priorite: "normale" });
     navigate(`/tickets/${ticket.id}`);
   };
   return (
@@ -42,11 +43,11 @@ export default function Signalement() {
                   <SelectContent>{Object.entries(categoryLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2"><Label>Priorité</Label>
-                <Select value={form.priorite} onValueChange={v => set("priorite", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="basse">Basse</SelectItem><SelectItem value="normale">Normale</SelectItem><SelectItem value="haute">Haute</SelectItem><SelectItem value="urgente">Urgente</SelectItem></SelectContent>
-                </Select>
+              <div className="space-y-2"><Label>Urgence</Label>
+                <div className="flex h-10 items-center justify-between rounded-md border border-input px-3">
+                  <span className="text-sm text-muted-foreground">Marquer comme urgent</span>
+                  <Switch checked={form.urgence} onCheckedChange={v => set("urgence", v)} />
+                </div>
               </div>
             </div>
 

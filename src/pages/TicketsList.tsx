@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
-import { statusLabels, statusColors, categoryLabels, TicketStatus, responsabiliteLabels, priorityLabels } from "@/data/types";
+import { statusLabels, statusColors, categoryLabels, TicketStatus, responsabiliteLabels } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -40,21 +40,7 @@ export default function TicketsList() {
                   <span className="text-xs text-muted-foreground font-mono">{t.reference}</span>
                   <Badge variant="outline" className={`status-badge border-0 ${statusColors[t.status]}`}>{statusLabels[t.status]}</Badge>
                   <Badge variant="outline" className="border-0 bg-primary/10 text-primary text-[10px]">Catégorie : {categoryLabels[t.categorie]}</Badge>
-                  <Badge variant="secondary" className="text-[10px]">Responsabilité : {responsabiliteLabels[t.responsabilite]}</Badge>
-                  <Badge
-                    variant="outline"
-                    className={`border-0 text-[10px] font-medium ${
-                      t.priorite === "urgente"
-                        ? "bg-destructive/20 text-destructive"
-                        : t.priorite === "haute"
-                          ? "bg-destructive/15 text-destructive"
-                          : t.priorite === "normale"
-                            ? "bg-warning/20 text-amber-800 dark:text-amber-300"
-                            : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    Priorité : {priorityLabels[t.priorite]}
-                  </Badge>
+                  {t.responsabilite && <Badge variant="secondary" className="text-[10px]">Responsabilité : {responsabiliteLabels[t.responsabilite]}</Badge>}
                   {t.urgence && <Badge className="bg-destructive text-destructive-foreground text-[10px]">URGENT</Badge>}
                 </div>
                 <p className="font-medium text-sm">{t.titre}</p>

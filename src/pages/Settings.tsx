@@ -1,21 +1,29 @@
 import { useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
-import { TicketPriority, priorityLabels, EmailTemplate } from "@/data/types";
+import { EmailTemplate } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home } from "lucide-react";
+import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home, Inbox, Copy, CheckCircle2 } from "lucide-react";
 
-const allPriorities: TicketPriority[] = ["urgente", "haute", "normale", "basse"];
 const templateVariables = ["{{nom_agence}}", "{{adresse}}", "{{lot}}", "{{categorie}}", "{{description}}", "{{nom_artisan}}", "{{telephone_artisan}}", "{{nom_locataire}}", "{{telephone_locataire}}", "{{nom_proprietaire}}", "{{montant}}", "{{date_intervention}}"];
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [inboundCopied, setInboundCopied] = useState(false);
+
+  const handleCopyInboundEmail = () => {
+    if (!settings.email_inbound?.trim()) return;
+    navigator.clipboard.writeText(settings.email_inbound).then(() => {
+      setInboundCopied(true);
+      setTimeout(() => setInboundCopied(false), 2000);
+    });
+  };
 
   const updateTemplate = (id: string, data: Partial<EmailTemplate>) => {
     const updated = settings.email_templates.map(t => t.id === id ? { ...t, ...data } : t);
@@ -71,32 +79,53 @@ export default function Settings() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2"><Shield className="h-4 w-4" /> Règles de gestion</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Input id="threshold" type="number" min={0} step={50} value={settings.delegation_threshold} onChange={e => updateSettings({ delegation_threshold: Number(e.target.value) })} className="w-32" disabled={settings.always_ask_owner} placeholder="Seuil (€)" />
-              <span className="text-sm text-muted-foreground">€</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Seuil de délégation — en dessous, le gestionnaire peut valider sans accord propriétaire.</p>
-          </div>
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Checkbox id="always-ask" checked={settings.always_ask_owner} onCheckedChange={checked => updateSettings({ always_ask_owner: checked === true })} className="mt-0.5" />
+        <CardContent className="space-y-5">
+          {/* Section 1 — Seuil de délégation */}
+          <div className="space-y-3">
             <div>
-              <label htmlFor="always-ask" className="text-sm font-medium cursor-pointer">Toujours demander l'accord du propriétaire quel que soit le montant</label>
-              <p className="text-xs text-muted-foreground mt-0.5">Si activé, le seuil de délégation est ignoré et l'étape « Accord propriétaire » s'affiche systématiquement.</p>
+              <p className="text-sm font-semibold">Seuil de délégation</p>
+              <p className="text-xs text-muted-foreground">En dessous de ce montant, le gestionnaire peut valider un devis sans demander l'accord du propriétaire.</p>
+            </div>
+            {!settings.always_ask_owner && (
+              <div className="relative">
+                <Input
+                  type="number" min={0} step={50}
+                  value={settings.delegation_threshold}
+                  onChange={e => updateSettings({ delegation_threshold: Number(e.target.value) })}
+                  className="pl-8"
+                  placeholder="Seuil de délégation (€)"
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between rounded-[4px] border border-input p-3">
+              <div>
+                <p className="text-sm font-medium">Toujours demander l'accord propriétaire</p>
+                <p className="text-xs text-muted-foreground">Chaque devis devra être approuvé par le propriétaire</p>
+              </div>
+              <Switch checked={settings.always_ask_owner} onCheckedChange={checked => updateSettings({ always_ask_owner: checked })} />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Input id="delay" type="number" min={1} value={settings.escalation_delay_days} onChange={e => updateSettings({ escalation_delay_days: Number(e.target.value) })} className="w-24" placeholder="Délai" />
-              <span className="text-sm text-muted-foreground">jours</span>
+
+          <hr className="border-border" />
+
+          {/* Section 2 — Relances automatiques */}
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold">Relances automatiques</p>
+              <p className="text-xs text-muted-foreground">Configurez les relances envoyées automatiquement en l'absence de réponse du propriétaire ou de l'artisan.</p>
             </div>
-            <p className="text-xs text-muted-foreground">Délai d'escalade — si le propriétaire ne répond pas après ce délai et {settings.escalation_reminders_count} relances.</p>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Input id="reminders" type="number" min={1} value={settings.escalation_reminders_count} onChange={e => updateSettings({ escalation_reminders_count: Number(e.target.value) })} className="w-24" placeholder="Relances" />
-              <span className="text-sm text-muted-foreground">relances</span>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Délai avant relance</span>
+                <span className="text-sm font-semibold">{settings.escalation_delay_days} jour{settings.escalation_delay_days > 1 ? "s" : ""}</span>
+              </div>
+              <Slider
+                value={[settings.escalation_delay_days]}
+                onValueChange={([v]) => updateSettings({ escalation_delay_days: v })}
+                min={1} max={7} step={1}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Nombre de jours sans réponse avant relance automatique</p>
             </div>
           </div>
         </CardContent>
@@ -133,6 +162,29 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2"><Inbox className="h-4 w-4" /> Adresse de réception des signalements</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-md bg-muted/40 border px-3 py-2 text-sm font-mono select-all">
+              {settings.email_inbound?.trim() || "Adresse non configuree"}
+            </code>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
+              onClick={handleCopyInboundEmail}
+              disabled={!settings.email_inbound?.trim()}
+            >
+              {inboundCopied ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+              {inboundCopied ? "Copié" : "Copier"}
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">Transférez les emails de signalement à cette adresse pour créer automatiquement des tickets.</p>
+        </CardContent>
+      </Card>
+
       {/* Summary */}
       <Card className="border-0 shadow-sm bg-primary/5">
         <CardContent className="p-4 text-sm space-y-1">
@@ -142,8 +194,7 @@ export default function Settings() {
           ) : (
             <p className="text-muted-foreground">Le gestionnaire peut valider les devis jusqu'à <strong>{settings.delegation_threshold} €</strong> sans accord du propriétaire.</p>
           )}
-          <p className="text-muted-foreground">En cas de non-réponse : escalade après <strong>{settings.escalation_delay_days} jours</strong> et <strong>{settings.escalation_reminders_count} relances</strong>.</p>
-          <p className="text-muted-foreground">Priorités actives : {(settings.enabled_priorities || allPriorities).map(p => priorityLabels[p]).join(", ") || "Aucune"}</p>
+          <p className="text-muted-foreground">Relance automatique après <strong>{settings.escalation_delay_days} jour{settings.escalation_delay_days > 1 ? "s" : ""}</strong> sans réponse.</p>
           {settings.accountant_email && <p className="text-muted-foreground">Comptable : <strong>{settings.accountant_email}</strong></p>}
         </CardContent>
       </Card>

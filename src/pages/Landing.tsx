@@ -1,11 +1,10 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { HardHat, CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const CALENDAR_URL = "https://calendar.app.google/V73ZcSgq5vY7cDnk7";
 
 const Landing = () => {
-  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       {/* Header */}
@@ -19,11 +18,18 @@ const Landing = () => {
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
           </nav>
+          <div className="flex items-center gap-3">
+          <Link to="/login">
+            <Button variant="ghost" size="sm" className="font-medium">
+              Se connecter
+            </Button>
+          </Link>
           <Link to={CALENDAR_URL} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             <Button variant="outline" size="sm" className="font-medium gap-1.5">
               <CalendarCheck className="h-3.5 w-3.5" /> Réserver une démo
             </Button>
           </Link>
+        </div>
         </div>
       </header>
 
@@ -73,7 +79,7 @@ const Landing = () => {
 
             {/* Bottom: Video */}
             <div className="flex justify-center w-full">
-              <div className="w-full max-w-4xl rounded-lg border border-border/50 shadow-lg overflow-hidden bg-card">
+              <div className="w-full max-w-4xl rounded-lg border-2 border-secondary shadow-lg overflow-hidden bg-card">
                 <div style={{ position: "relative", paddingBottom: "53.4%", height: 0, overflow: "hidden" }} className="rounded-lg">
                   <iframe
                     src="https://www.loom.com/embed/c19d7218c7824021a27be1fbded79c25"
@@ -110,16 +116,8 @@ const Landing = () => {
             Réserver une démo
           </a>
         </div>
-        {/* Accès interne — triple-clic sur le logo */}
         <div className="mt-8 flex justify-center">
-          <button
-            onClick={(e) => {
-              if (e.detail === 3) navigate("/onboarding");
-            }}
-            className="text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors select-none cursor-default"
-          >
-            v0.1
-          </button>
+          <span className="text-xs text-muted-foreground/30 select-none">v0.1</span>
         </div>
       </footer>
     </div>

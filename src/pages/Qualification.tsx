@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
-import { categoryLabels, priorityLabels, priorityColors } from "@/data/types";
+import { categoryLabels, responsabiliteLabels } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, ArrowRight } from "lucide-react";
+import { Brain, ArrowRight, Home, MapPin, User } from "lucide-react";
 
 export default function Qualification() {
   const { tickets, qualifyTicket } = useTickets();
@@ -21,11 +21,16 @@ export default function Qualification() {
             <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs text-muted-foreground">{t.reference}</span>
-                <Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge>
                 {t.urgence && <Badge className="bg-destructive text-destructive-foreground text-[10px]">URGENT</Badge>}
+                {t.responsabilite && <Badge variant="secondary" className="text-[10px]">{responsabiliteLabels[t.responsabilite]}</Badge>}
               </div>
               <p className="font-medium text-sm">{t.titre}</p>
-              <p className="text-xs text-muted-foreground mt-1">{t.locataire.nom} · {categoryLabels[t.categorie]}</p>
+              <p className="text-xs text-muted-foreground mt-1">{categoryLabels[t.categorie]}</p>
+              <div className="grid gap-1.5 mt-2 text-xs text-muted-foreground">
+                <p className="flex items-center gap-1.5"><User className="h-3 w-3" /> Locataire : {t.locataire.nom || "Non renseigné"}</p>
+                <p className="flex items-center gap-1.5"><Home className="h-3 w-3" /> Propriétaire : {t.bien.proprietaire || "Non renseigné"}</p>
+                <p className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /> {t.bien.adresse || "Adresse non renseignée"}{t.bien.lot ? ` · ${t.bien.lot}` : ""}</p>
+              </div>
             </div>
             <Button onClick={() => qualifyTicket(t.id)} className="shrink-0"><Brain className="h-4 w-4 mr-2" /> Diagnostiquer <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>
           </CardContent>

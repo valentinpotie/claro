@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useTickets } from "@/contexts/TicketContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { statusLabels, statusColors, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels, priorityLabels, priorityColors } from "@/data/types";
+import { statusLabels, statusColors, categoryLabels, workflowSteps, syndicWorkflowSteps, responsabiliteLabels } from "@/data/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,15 @@ export default function TicketDetail() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id]);
 
+  useEffect(() => {
+    if (ticketTourStep === 1) {
+      document.getElementById("ticket-tour-header")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    if (ticketTourStep === 2) {
+      document.getElementById("ticket-tour-stepper")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [ticketTourStep]);
+
   if (!ticket) return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Ticket introuvable</p></div>;
 
   const isSyndic = ticket.responsabilite === "syndic";
@@ -51,6 +60,7 @@ export default function TicketDetail() {
   const isHeaderFocused = ticketTourStep === 1;
   const isStepperFocused = ticketTourStep === 2;
   const isDrawerFocused = ticketTourStep === 3;
+  const showArtisanConversation = ["contact_artisan", "intervention", "confirmation_passage"].includes(ticket.status);
 
   const closeTicketTour = () => {
     setTicketTourStep(0);
@@ -69,15 +79,6 @@ export default function TicketDetail() {
     }
     closeTicketTour();
   };
-
-  useEffect(() => {
-    if (ticketTourStep === 1) {
-      document.getElementById("ticket-tour-header")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    if (ticketTourStep === 2) {
-      document.getElementById("ticket-tour-stepper")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [ticketTourStep]);
 
   return (
     <div className="space-y-6">
@@ -207,21 +208,20 @@ export default function TicketDetail() {
                       <Separator />
                       <div className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{ticket.mailSource.body}</div>
                       <Separator />
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-muted-foreground">Pièces jointes</p>
-                        <div className="flex flex-wrap gap-2">
-                          <div className="flex items-center gap-2 rounded-[4px] border bg-muted/50 px-2.5 py-1.5 text-xs">
-                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-medium">photo_fuite.jpg</span>
-                            <span className="text-muted-foreground">— 1.2 Mo</span>
-                          </div>
-                          <div className="flex items-center gap-2 rounded-[4px] border bg-muted/50 px-2.5 py-1.5 text-xs">
-                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-medium">constat_degats.pdf</span>
-                            <span className="text-muted-foreground">— 340 Ko</span>
+                      {ticket.mailSource.attachments && ticket.mailSource.attachments.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">Pièces jointes</p>
+                          <div className="flex flex-wrap gap-2">
+                            {ticket.mailSource.attachments.map((att, i) => (
+                              <div key={i} className="flex items-center gap-2 rounded-[4px] border bg-muted/50 px-2.5 py-1.5 text-xs">
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="font-medium">{att.name}</span>
+                                {att.size && <span className="text-muted-foreground">— {att.size}</span>}
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </TabsContent>
                 )}
@@ -246,40 +246,31 @@ export default function TicketDetail() {
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Wrench className="h-4 w-4" /> Contacter un artisan pour diagnostic sur place</CardTitle></CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground mb-3">L'artisan se déplacera pour constater le problème et établir un devis sur place.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {ctx.artisans.filter(a => a.specialite.toLowerCase().includes(ticket.categorie === "electricite" ? "élect" : ticket.categorie)).map(a => (
-                      <Button key={a.id} size="sm" variant="outline" onClick={() => ctx.sendArtisanContact(ticket.id, a.id)}>
-                        <Send className="h-3 w-3 mr-1" /> {a.nom}
+                  {ctx.artisans.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-center space-y-2">
+                      <p className="text-sm text-muted-foreground">Aucun artisan configuré</p>
+                      <Button size="sm" variant="outline" onClick={() => navigate("/artisans")}>
+                        <Wrench className="h-3.5 w-3.5 mr-1.5" /> Ajouter des artisans
                       </Button>
-                    ))}
-                    {ctx.artisans.filter(a => !a.specialite.toLowerCase().includes(ticket.categorie === "electricite" ? "élect" : ticket.categorie)).map(a => (
-                      <Button key={a.id} size="sm" variant="outline" onClick={() => ctx.sendArtisanContact(ticket.id, a.id)}>
-                        <Send className="h-3 w-3 mr-1" /> {a.nom}
-                      </Button>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {/* Matching specialty first */}
+                      {ctx.artisans.filter(a => a.specialite.toLowerCase().includes(ticket.categorie === "electricite" ? "élect" : ticket.categorie)).map(a => (
+                        <Button key={a.id} size="sm" variant="outline" onClick={() => ctx.sendArtisanContact(ticket.id, a.id)}>
+                          <Send className="h-3 w-3 mr-1" /> {a.nom}
+                        </Button>
+                      ))}
+                      {/* Other artisans */}
+                      {ctx.artisans.filter(a => !a.specialite.toLowerCase().includes(ticket.categorie === "electricite" ? "élect" : ticket.categorie)).map(a => (
+                        <Button key={a.id} size="sm" variant="outline" className="opacity-70" onClick={() => ctx.sendArtisanContact(ticket.id, a.id)}>
+                          <Send className="h-3 w-3 mr-1" /> {a.nom}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-
-              {/* Messages */}
-              {Object.keys(ticket.messages).length > 0 && (
-                <Tabs defaultValue={Object.keys(ticket.messages)[0]}>
-                  <TabsList>
-                    {Object.keys(ticket.messages).map(aid => {
-                      const a = ctx.getArtisan(aid);
-                      return <TabsTrigger key={aid} value={aid}>{a?.nom || aid}</TabsTrigger>;
-                    })}
-                  </TabsList>
-                  {Object.entries(ticket.messages).map(([aid, msgs]) => {
-                    const a = ctx.getArtisan(aid);
-                    return (
-                      <TabsContent key={aid} value={aid}>
-                        <MessageThread artisanNom={a?.nom || ""} messages={msgs} onSend={content => ctx.addMessage(ticket.id, aid, content, "agence")} />
-                      </TabsContent>
-                    );
-                  })}
-                </Tabs>
-              )}
 
               {/* Simulate receiving quote */}
               {ticket.artisanId && (
@@ -293,6 +284,26 @@ export default function TicketDetail() {
                 </Card>
               )}
             </>
+          )}
+
+          {/* Conversation artisan visible pendant le suivi intervention */}
+          {showArtisanConversation && Object.keys(ticket.messages).length > 0 && (
+            <Tabs defaultValue={Object.keys(ticket.messages)[0]}>
+              <TabsList>
+                {Object.keys(ticket.messages).map(aid => {
+                  const a = ctx.getArtisan(aid);
+                  return <TabsTrigger key={aid} value={aid}>{a?.nom || aid}</TabsTrigger>;
+                })}
+              </TabsList>
+              {Object.entries(ticket.messages).map(([aid, msgs]) => {
+                const a = ctx.getArtisan(aid);
+                return (
+                  <TabsContent key={aid} value={aid}>
+                    <MessageThread artisanNom={a?.nom || ""} messages={msgs} onSend={content => ctx.addMessage(ticket.id, aid, content, "agence")} />
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
           )}
 
           {/* Réception devis */}
@@ -367,7 +378,7 @@ export default function TicketDetail() {
                       <Clock className="h-3.5 w-3.5 animate-spin" />
                       <span>En attente de la réponse du propriétaire…</span>
                     </div>
-                    <Button onClick={() => ctx.updateTicket(ticket.id, { status: "artisan_contact", validationStatus: "approuve" })} className="w-full">
+                    <Button onClick={() => ctx.updateTicket(ticket.id, { status: "contact_artisan", validationStatus: "approuve" })} className="w-full">
                       <ArrowRight className="h-4 w-4 mr-2" /> Approuver et continuer
                     </Button>
                   </div>
@@ -406,40 +417,47 @@ export default function TicketDetail() {
             </Card>
           )}
 
-          {/* Intervention — Confirmation de passage */}
+          {/* Intervention — suivi artisan + attente preuve locataire */}
           {ticket.status === "intervention" && (
             <Card className="border-0 shadow-sm border-l-4 border-l-primary">
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Confirmation de passage</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Intervention en cours</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm">Artisan : <span className="font-medium">{artisan?.nom}</span></p>
-                {ticket.dateInterventionPrevue && <p className="text-sm">Date prévue : <span className="font-medium">{ticket.dateInterventionPrevue}</span></p>}
-                <p className="text-sm font-medium">L'artisan est-il bien intervenu ?</p>
+                {ticket.dateInterventionPrevue && (
+                  <div className="flex items-center justify-between rounded-md border bg-muted/40 p-2">
+                    <p className="text-sm">Date prévue : <span className="font-medium">{ticket.dateInterventionPrevue}</span></p>
+                    <Badge className="bg-success/15 text-success border-0">Rendez-vous convenu artisan/locataire</Badge>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">Quand l'artisan envoie sa facture, Claro demande automatiquement au locataire une preuve (photo/vidéo) du passage.</p>
+                <p className="text-sm font-medium">Facture reçue de l'artisan ?</p>
                 <div className="flex gap-3">
                   <Button onClick={() => ctx.confirmPassage(ticket.id, true)} className="flex-1">
-                    <CheckCircle2 className="h-4 w-4 mr-2" /> Oui, confirmé
+                    <CheckCircle2 className="h-4 w-4 mr-2" /> Oui, lancer la demande de preuve
                   </Button>
                   <Button onClick={() => ctx.confirmPassage(ticket.id, false)} variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/5">
-                    <XCircle className="h-4 w-4 mr-2" /> Non, pas intervenu
+                    <XCircle className="h-4 w-4 mr-2" /> Non, pas encore
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Confirmation passage */}
+          {/* Confirmation passage — preuve locataire */}
           {ticket.status === "confirmation_passage" && (
             <Card className="border-0 shadow-sm border-l-4 border-l-primary">
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Confirmation de passage</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Confirmation du passage</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm">Artisan : <span className="font-medium">{artisan?.nom}</span></p>
                 {ticket.dateInterventionPrevue && <p className="text-sm">Date prévue : <span className="font-medium">{ticket.dateInterventionPrevue}</span></p>}
-                <p className="text-sm font-medium">L'artisan est-il bien intervenu ?</p>
+                <p className="text-sm text-muted-foreground">Un email a été envoyé au locataire pour fournir une photo/vidéo de confirmation.</p>
+                <p className="text-sm font-medium">Preuve locataire reçue ?</p>
                 <div className="flex gap-3">
                   <Button onClick={() => ctx.confirmPassage(ticket.id, true)} className="flex-1">
-                    <CheckCircle2 className="h-4 w-4 mr-2" /> Oui, confirmé
+                    <CheckCircle2 className="h-4 w-4 mr-2" /> Oui, passer à la facturation
                   </Button>
                   <Button onClick={() => ctx.confirmPassage(ticket.id, false)} variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/5">
-                    <XCircle className="h-4 w-4 mr-2" /> Non, pas intervenu
+                    <XCircle className="h-4 w-4 mr-2" /> Non, relancer le locataire
                   </Button>
                 </div>
               </CardContent>
@@ -640,12 +658,12 @@ export default function TicketDetail() {
                   <span className="text-muted-foreground">Responsabilité</span>
                   <Badge variant="secondary" className="text-[10px]">{responsabiliteLabels[ticket.responsabilite]}</Badge>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Priorité</span>
-                  <Badge variant="outline" className={`border-0 text-[10px] font-medium ${priorityColors[ticket.priorite]}`}>
-                    {priorityLabels[ticket.priorite]}
-                  </Badge>
-                </div>
+                {ticket.urgence && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Urgence</span>
+                    <Badge variant="destructive" className="text-[10px]">Urgent</Badge>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -668,23 +686,25 @@ export default function TicketDetail() {
             </Card>
           )}
 
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><User className="h-4 w-4" /> Locataire</CardTitle></CardHeader>
+          <Card className={`border-0 shadow-sm${ticket.tenant_id ? " cursor-pointer hover:ring-1 hover:ring-primary/30 transition-shadow" : ""}`} onClick={() => ticket.tenant_id && navigate(`/tenants/${ticket.tenant_id}`)}>
+            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><User className="h-4 w-4" /> Locataire {ticket.tenant_id && <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground" />}</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <p className="font-medium">{ticket.locataire.nom}</p>
               <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-3.5 w-3.5" />{ticket.locataire.telephone}</div>
               <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3.5 w-3.5" />{ticket.locataire.email}</div>
             </CardContent>
           </Card>
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Home className="h-4 w-4" /> Bien</CardTitle></CardHeader>
+          <Card className={`border-0 shadow-sm${ticket.property_id ? " cursor-pointer hover:ring-1 hover:ring-primary/30 transition-shadow" : ""}`} onClick={() => ticket.property_id && navigate(`/properties/${ticket.property_id}`)}>
+            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Home className="h-4 w-4" /> Bien {ticket.property_id && <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground" />}</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex items-start gap-2"><MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5" /><div><p>{ticket.bien.adresse}</p><p className="text-muted-foreground">{ticket.bien.lot}</p></div></div>
               <Separator />
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Propriétaire</p>
-              <p className="font-medium">{ticket.bien.proprietaire}</p>
-              <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-3.5 w-3.5" />{ticket.bien.telephoneProprio}</div>
-              <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3.5 w-3.5" />{ticket.bien.emailProprio}</div>
+              <div className={`space-y-2${ticket.owner_id ? " cursor-pointer" : ""}`} onClick={e => { if (ticket.owner_id) { e.stopPropagation(); navigate(`/owners/${ticket.owner_id}`); } }}>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">Propriétaire {ticket.owner_id && <ArrowRight className="h-3 w-3 text-muted-foreground" />}</p>
+                <p className="font-medium">{ticket.bien.proprietaire}</p>
+                <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-3.5 w-3.5" />{ticket.bien.telephoneProprio}</div>
+                <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3.5 w-3.5" />{ticket.bien.emailProprio}</div>
+              </div>
             </CardContent>
           </Card>
           {artisan && (

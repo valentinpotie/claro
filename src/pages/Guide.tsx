@@ -25,7 +25,7 @@ export default function Guide() {
 
             <div className="bg-muted rounded-lg p-4">
               <p className="font-semibold mb-1">2. Signalement (3 min) — Formulaire</p>
-              <p className="text-muted-foreground">"Un locataire vous appelle : fuite sous l'évier. En 30 secondes, vous créez le dossier. L'outil diagnostique automatiquement : catégorie plomberie, priorité haute (risque dégât des eaux), et trouve 3 artisans disponibles."</p>
+              <p className="text-muted-foreground">"Un locataire vous appelle : fuite sous l'évier. En 30 secondes, vous créez le dossier. L'outil diagnostique automatiquement : catégorie plomberie, incident urgent si nécessaire, et trouve 3 artisans disponibles."</p>
               <p className="mt-2 font-medium text-primary">→ Mesurer l'intérêt pour l'automatisation du diagnostic</p>
             </div>
 

@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
-import { priorityLabels, priorityColors } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +18,7 @@ export default function ConfirmationPassage() {
         return (
           <Card key={t.id} className="border-0 shadow-sm"><CardContent className="p-4 flex items-start justify-between">
             <div className="flex-1 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
-              <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span><Badge variant="outline" className={`status-badge border-0 ${priorityColors[t.priorite]}`}>{priorityLabels[t.priorite]}</Badge></div>
+              <div className="flex items-center gap-2 mb-1"><span className="text-xs text-muted-foreground">{t.reference}</span>{t.urgence && <Badge className="bg-destructive text-destructive-foreground text-[10px]">URGENT</Badge>}</div>
               <p className="font-medium text-sm">{t.titre}</p>
               <div className="flex gap-4 text-xs text-muted-foreground mt-1">
                 <span className="flex items-center gap-1"><HardHat className="h-3 w-3" />{artisan?.nom}</span>

@@ -25,7 +25,9 @@ const q = async (text, params = []) => {
 };
 
 const printSection = (title) => {
-  console.log(`\n=== ${title} ===`);
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`\n=== ${title} ===`);
+  }
 };
 
 const inspectAllTables = async () => {
