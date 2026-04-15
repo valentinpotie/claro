@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { AppLoader } from "@/components/AppLoader";
 import { AgencySettings, TicketPriority } from "@/data/types";
 import { USE_SUPABASE, supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +29,7 @@ const defaultSettings: AgencySettings = {
   email_inbound: "",
   delegation_threshold: 250,
   always_ask_owner: false,
-  escalation_delay_days: 15,
+  escalation_delay_days: 3,
   escalation_reminders_count: 3,
   onboarding_completed: false,
   enabled_priorities: ["urgente", "haute", "normale", "basse"] as TicketPriority[],
@@ -349,11 +350,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // on a fresh device (no local data yet). Never block when onboarding was just completed
   // locally — the AgencySetupLoader animation would be unmounted mid-play otherwise.
   if (USE_SUPABASE && loading && !remoteSettings && !remoteError && !settings.onboarding_completed) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        Chargement de l'agence...
-      </div>
-    );
+    return <AppLoader />;
   }
 
   return (

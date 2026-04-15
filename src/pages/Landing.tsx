@@ -24,11 +24,16 @@ const Landing = () => {
               Se connecter
             </Button>
           </Link>
-          <Link to={CALENDAR_URL} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link to="/signup">
+            <Button size="sm" className="font-medium">
+              Créer un compte
+            </Button>
+          </Link>
+          <a href={CALENDAR_URL} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" size="sm" className="font-medium gap-1.5">
               <CalendarCheck className="h-3.5 w-3.5" /> Réserver une démo
             </Button>
-          </Link>
+          </a>
         </div>
         </div>
       </header>

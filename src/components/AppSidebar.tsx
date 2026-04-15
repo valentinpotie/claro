@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ClipboardList,
-  HardHat, PlusCircle, Settings, LogOut, Wrench, Database, Home, Users, UserCheck, ChevronRight,
+  HardHat, PlusCircle, Settings, LogOut, Wrench, Database, Home, Users, UserCheck, ChevronRight, Info,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -131,6 +131,10 @@ export function AppSidebar() {
         <NavLink to="/settings" className="text-xs text-sidebar-muted hover:text-sidebar-foreground transition-colors flex items-center gap-2">
           <Settings className="h-3.5 w-3.5" />
           {!collapsed && <span>Paramètres</span>}
+        </NavLink>
+        <NavLink to="/about" className="text-xs text-sidebar-muted hover:text-sidebar-foreground transition-colors flex items-center gap-2">
+          <Info className="h-3.5 w-3.5" />
+          {!collapsed && <span>Qui sommes-nous ?</span>}
         </NavLink>
         {USE_SUPABASE && (
           <button

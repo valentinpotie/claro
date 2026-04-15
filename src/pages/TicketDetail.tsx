@@ -291,15 +291,15 @@ export default function TicketDetail() {
             <Tabs defaultValue={Object.keys(ticket.messages)[0]}>
               <TabsList>
                 {Object.keys(ticket.messages).map(aid => {
-                  const a = ctx.getArtisan(aid);
-                  return <TabsTrigger key={aid} value={aid}>{a?.nom || aid}</TabsTrigger>;
+                  const a = ctx.getArtisan(aid) ?? (aid === ticket.artisanId ? artisan : null);
+                  return <TabsTrigger key={aid} value={aid}>{a?.nom || "Artisan"}</TabsTrigger>;
                 })}
               </TabsList>
               {Object.entries(ticket.messages).map(([aid, msgs]) => {
-                const a = ctx.getArtisan(aid);
+                const a = ctx.getArtisan(aid) ?? (aid === ticket.artisanId ? artisan : null);
                 return (
                   <TabsContent key={aid} value={aid}>
-                    <MessageThread artisanNom={a?.nom || ""} messages={msgs} onSend={content => ctx.addMessage(ticket.id, aid, content, "agence")} />
+                    <MessageThread artisanNom={a?.nom || "Artisan"} messages={msgs} onSend={content => ctx.addMessage(ticket.id, aid, content, "agence")} />
                   </TabsContent>
                 );
               })}

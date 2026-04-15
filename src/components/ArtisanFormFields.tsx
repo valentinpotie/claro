@@ -114,6 +114,7 @@ export function ArtisanFormFields({ value, onChange }: ArtisanFormFieldsProps) {
         <div className="flex items-center gap-1.5">
           <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <Input
+            type="tel"
             placeholder="Téléphone"
             value={value.telephone}
             onChange={e => onChange({ ...value, telephone: e.target.value })}
@@ -126,6 +127,7 @@ export function ArtisanFormFields({ value, onChange }: ArtisanFormFieldsProps) {
         <div className="flex items-center gap-1.5">
           <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <Input
+            type="email"
             placeholder="Email"
             value={value.email}
             onChange={e => onChange({ ...value, email: e.target.value })}

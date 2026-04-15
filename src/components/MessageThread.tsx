@@ -13,6 +13,7 @@ interface Props {
 
 export function MessageThread({ artisanNom, messages, onSend }: Props) {
   const [input, setInput] = useState("");
+  const displayName = artisanNom?.trim() || "Artisan";
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -24,7 +25,7 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
     <Card className="border-0">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-display flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" /> Échanges avec {artisanNom}
+          <MessageSquare className="h-4 w-4" /> Échanges avec {displayName}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -36,7 +37,7 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
             <div key={msg.id} className={`p-2.5 rounded-[4px] text-sm ${msg.from === "agence" ? "bg-primary/10 ml-4" : "bg-muted mr-4"}`}>
               <div className="flex justify-between mb-0.5">
                 <span className="text-[10px] font-medium text-muted-foreground">
-                  {msg.from === "agence" ? "Vous" : artisanNom}
+                  {msg.from === "agence" ? "Vous" : displayName}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
                   {new Date(msg.timestamp).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}

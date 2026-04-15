@@ -908,24 +908,28 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       if (!USE_SUPABASE) return;
       const isValidAgencyId = isUuid(agencyId);
-      if (!isValidAgencyId) return;
-      try {
-        await supabase.from("artisans").insert({
-          id,
-          agency_id: agencyId,
-          name: data.nom,
-          specialty: data.specialite,
-          city: data.ville,
-          address: data.address ?? null,
-          rating: data.note,
-          interventions_count: data.interventions,
-          average_delay: data.delaiMoyen,
-          phone: data.telephone,
-          email: data.email,
-          is_trusted: true,
-        });
-      } catch (error) {
-        console.error("Failed to persist artisan", error);
+      if (!isValidAgencyId) {
+        console.error("addArtisan: agency_id invalide, l'artisan ne sera pas enregistré", { agencyId });
+        setArtisans(prev => prev.filter(a => a.id !== id));
+        return;
+      }
+      const { error } = await supabase.from("artisans").insert({
+        id,
+        agency_id: agencyId,
+        name: data.nom,
+        specialty: data.specialite,
+        city: data.ville,
+        address: data.address ?? null,
+        rating: data.note,
+        interventions_count: data.interventions,
+        average_delay: data.delaiMoyen,
+        phone: data.telephone,
+        email: data.email,
+        is_trusted: true,
+      });
+      if (error) {
+        console.error("Failed to persist artisan, rollback", error.message);
+        setArtisans(prev => prev.filter(a => a.id !== id));
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -950,10 +954,9 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
 
       if (Object.keys(payload).length === 0) return;
 
-      try {
-        await supabase.from("artisans").update(payload).eq("id", id);
-      } catch (error) {
-        console.error("Failed to update artisan", error);
+      const { error } = await supabase.from("artisans").update(payload).eq("id", id);
+      if (error) {
+        console.error("Failed to update artisan", error.message);
       }
     })();
   }, []);

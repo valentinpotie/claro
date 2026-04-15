@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AIJournalPanel } from "@/components/AIJournalPanel";
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, HelpCircle, Mail, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -10,6 +11,8 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const [helpOpen, setHelpOpen] = useState(false);
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -23,6 +26,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={() => setHelpOpen(true)}>
+                <HelpCircle className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="h-4 w-4" />
                 <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-destructive rounded-full" />
@@ -38,6 +44,42 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
         <AIJournalPanel />
       </div>
+
+      {/* Help modal */}
+      {helpOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/40"
+            onClick={() => setHelpOpen(false)}
+          />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <p className="text-sm font-semibold">Besoin d'aide ?</p>
+              <button
+                onClick={() => setHelpOpen(false)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-5 py-5 space-y-4">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Une question, un bug ou une suggestion ? L'équipe Claro vous répond directement.
+              </p>
+              <a
+                href="mailto:v_potie@hetic.eu"
+                className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm font-medium hover:bg-muted transition-colors"
+              >
+                <Mail className="h-4 w-4 text-primary shrink-0" />
+                v_potie@hetic.eu
+              </a>
+              <p className="text-xs text-muted-foreground">
+                Vous pouvez aussi décrire le problème ou la page concernée dans votre message, ça nous aide à vous répondre plus vite.
+              </p>
+            </div>
+          </div>
+        </>
+      )}
     </SidebarProvider>
   );
 }

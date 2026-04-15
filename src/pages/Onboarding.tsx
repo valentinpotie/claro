@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import Autocomplete from "react-google-autocomplete";
+
 import { ArtisanFormFields, artisanSpecialtyLabels, defaultArtisanSpecialty } from "@/components/ArtisanFormFields";
 import { AgencySetupLoader } from "@/components/AgencySetupLoader";
 import {
   HardHat, ArrowRight, ArrowLeft, Check, Building2, Settings2, Wrench, Rocket,
-  Plus, Trash2, Pencil, Inbox, Copy, CheckCircle2, Sparkles,
+  Plus, Trash2, Pencil, Inbox, Copy, CheckCircle2, Sparkles, LogOut,
 } from "lucide-react";
 
 // ── Email domain → agency name ───────────────────────────────────────────────
@@ -88,7 +88,7 @@ function buildInboundEmail(name: string) {
 export default function Onboarding() {
   const navigate = useNavigate();
   const { settings, loading, updateSettings, completeOnboarding } = useSettings();
-  const { profile, user } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const emailDomainName = extractAgencyNameFromEmail(user?.email);
   const { addArtisan } = useTickets();
   // Keep artisans added during onboarding in local state.
@@ -248,28 +248,11 @@ export default function Onboarding() {
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-1.5">
-                <Autocomplete
+                <Input
                   ref={agencyInputRef}
-                  apiKey={import.meta.env.VITE_GOOGLE_PLACES_API_KEY}
-                  onPlaceSelected={(place: google.maps.places.PlaceResult) => {
-                    if (!place) return;
-                    const nom = (place.name ?? "").split(",")[0].trim();
-                    if (nom) {
-                      setAgencyName(nom);
-                      setTimeout(() => {
-                        if (agencyInputRef.current) agencyInputRef.current.value = nom;
-                      }, 0);
-                    }
-                  }}
-                  options={{
-                    types: ["real_estate_agency"],
-                    componentRestrictions: { country: "fr" },
-                    fields: ["name"],
-                  }}
                   value={agencyName}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgencyName(e.target.value)}
-                  placeholder="Recherchez votre agence ou saisissez son nom…"
-                  className="flex h-9 w-full rounded-[4px] border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  onChange={(e) => setAgencyName(e.target.value)}
+                  placeholder="Ex : Durand Immobilier"
                   autoFocus
                 />
                 {emailDomainName && agencyName === emailDomainName ? (
@@ -278,7 +261,7 @@ export default function Onboarding() {
                     Pré-rempli depuis votre domaine professionnel, modifiez si nécessaire
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Saisissez le nom de votre agence ou sélectionnez-la dans la liste.</p>
+                  <p className="text-xs text-muted-foreground">Saisissez le nom de votre agence.</p>
                 )}
               </div>
               <div className="flex justify-end">
@@ -554,6 +537,14 @@ export default function Onboarding() {
           </Card>
         )}
       </div>
+
+      {/* Logout discret */}
+      <button
+        onClick={async () => { await signOut(); navigate("/login", { replace: true }); }}
+        className="mt-8 mb-6 flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+      >
+        <LogOut className="h-3 w-3" /> Se déconnecter
+      </button>
     </div>
     </>
   );

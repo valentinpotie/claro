@@ -383,7 +383,7 @@ export function mapArtisanRow(row: DbArtisan): Artisan {
   return {
     id: row.id,
     nom: row.name ?? "Artisan",
-    specialite: row.specialty ?? "Autre",
+    specialite: row.specialty ?? "other",
     ville: row.city ?? "",
     address: row.address ?? "",
     note: Number(row.rating ?? 0),

@@ -1,4 +1,5 @@
 import React from "react";
+import { AppLoader } from "@/components/AppLoader";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,6 +29,7 @@ import Cloture from "./pages/Cloture";
 import Assurance from "./pages/Assurance";
 import Guide from "./pages/Guide";
 import Settings from "./pages/Settings";
+import AboutUs from "./pages/AboutUs";
 import Onboarding from "./pages/Onboarding";
 import LoaderPreview from "./pages/LoaderPreview";
 import NotFound from "./pages/NotFound";
@@ -41,13 +43,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Mock mode — no auth needed
   if (!USE_SUPABASE) return <>{children}</>;
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        Chargement...
-      </div>
-    );
-  }
+  if (loading) return <AppLoader />;
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -58,13 +54,7 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const { settings, loading } = useSettings();
 
   // While settings are still loading from DB, don't redirect to onboarding prematurely
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        Chargement...
-      </div>
-    );
-  }
+  if (loading) return <AppLoader />;
 
   if (!settings.onboarding_completed) {
     return <Navigate to="/onboarding" replace />;
@@ -114,6 +104,7 @@ const App = () => (
                         <Route path="/assurance" element={<OnboardingGuard><AppLayout><Assurance /></AppLayout></OnboardingGuard>} />
                         <Route path="/guide" element={<OnboardingGuard><AppLayout><Guide /></AppLayout></OnboardingGuard>} />
                         <Route path="/settings" element={<OnboardingGuard><AppLayout><Settings /></AppLayout></OnboardingGuard>} />
+                        <Route path="/about" element={<OnboardingGuard><AppLayout><AboutUs /></AppLayout></OnboardingGuard>} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </TicketProvider>
