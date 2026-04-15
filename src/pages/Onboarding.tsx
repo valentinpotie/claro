@@ -275,7 +275,7 @@ export default function Onboarding() {
                 {emailDomainName && agencyName === emailDomainName ? (
                   <p className="text-xs flex items-center gap-1 text-primary">
                     <Sparkles className="h-3 w-3" />
-                    Pré-rempli depuis votre domaine professionnel — modifiez si nécessaire
+                    Pré-rempli depuis votre domaine professionnel, modifiez si nécessaire
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">Saisissez le nom de votre agence ou sélectionnez-la dans la liste.</p>
@@ -361,7 +361,7 @@ export default function Onboarding() {
           <Card className="border-0">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-display">Vos artisans de confiance</CardTitle>
-              <p className="text-sm text-muted-foreground">Ces artisans seront proposés en premier lors du contact artisan. Vous pourrez en ajouter d'autres plus tard.</p>
+              <p className="text-sm text-muted-foreground">Ces artisans seront proposés en premier lors de la phase de contact d'un artisan. Vous pourrez en ajouter d'autres plus tard.</p>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Liste artisans */}
@@ -458,7 +458,7 @@ export default function Onboarding() {
             <Card className="border-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-display">Votre adresse email Claro</CardTitle>
-                <p className="text-sm text-muted-foreground">Tous les emails envoyés à cette adresse génèreront automatiquement un ticket dans Claro.</p>
+                <p className="text-sm text-muted-foreground">Tous les emails envoyés à cette adresse génèreront automatiquement un nouveau signalement dans Claro.</p>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">

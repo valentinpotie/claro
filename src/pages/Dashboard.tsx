@@ -522,7 +522,7 @@ export default function Dashboard() {
                           {desc && (
                             <div className="flex gap-1 mt-2">
                               <Button size="sm" variant={!showingMail ? "outline" : "ghost"} className="h-6 px-2 text-[10px]" onClick={(e) => { e.stopPropagation(); setViewModes(p => ({ ...p, [s.id]: "synthese" })); }}>
-                                <Brain className="h-3 w-3 mr-1" /> Synthèse IA
+                                <Brain className="h-3 w-3 mr-1" /> Synthèse Claro
                               </Button>
                               <Button size="sm" variant={showingMail ? "default" : "ghost"} className="h-6 px-2 text-[10px]" onClick={(e) => { e.stopPropagation(); setViewModes(p => ({ ...p, [s.id]: "mail" })); }}>
                                 <FileText className="h-3 w-3 mr-1" /> Mail original
