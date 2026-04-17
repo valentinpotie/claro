@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useOwners } from "@/hooks/useOwners";
+import { useTickets } from "@/contexts/TicketContext";
 import type { Owner } from "@/data/types";
+import { TicketMiniList, TicketCountBadge } from "@/components/TicketMiniList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +26,17 @@ const csvColumns = ["first_name", "last_name", "email", "phone", "validation_thr
 export default function Owners() {
   const { settings } = useSettings();
   const { owners, addOwner, updateOwner, removeOwner, bulkInsert } = useOwners(settings.agency_id);
+  const { tickets } = useTickets();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<Owner, "id">>(emptyOwner);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const ticketsForOwner = (o: Owner) =>
+    tickets.filter(t => o.email && t.bien.emailProprio === o.email);
 
   const filtered = owners.filter(o =>
     !search || [o.first_name, o.last_name, o.email, o.phone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
@@ -108,28 +115,45 @@ export default function Owners() {
                 <TableHead>Téléphone</TableHead>
                 <TableHead>Seuil validation</TableHead>
                 <TableHead>Préfère tél.</TableHead>
+                <TableHead>Tickets</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(o => (
-                <TableRow key={o.id}>
-                  <TableCell className="font-medium">{[o.first_name, o.last_name].filter(Boolean).join(" ")}</TableCell>
-                  <TableCell>{o.email}</TableCell>
-                  <TableCell>{o.phone}</TableCell>
-                  <TableCell>{o.validation_threshold ?? 500} €</TableCell>
-                  <TableCell><Badge variant={o.prefers_phone ? "default" : "secondary"} className="text-[10px]">{o.prefers_phone ? "Oui" : "Non"}</Badge></TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEdit(o)}><Pencil className="h-3.5 w-3.5 mr-2" /> Modifier</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm(o.id)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Supprimer</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map(o => {
+                const oTickets = ticketsForOwner(o);
+                const isExpanded = expandedId === o.id;
+                return (
+                  <>
+                    <TableRow key={o.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setExpandedId(isExpanded ? null : o.id)}>
+                      <TableCell className="font-medium">{[o.first_name, o.last_name].filter(Boolean).join(" ")}</TableCell>
+                      <TableCell>{o.email}</TableCell>
+                      <TableCell>{o.phone}</TableCell>
+                      <TableCell>{o.validation_threshold ?? 500} €</TableCell>
+                      <TableCell><Badge variant={o.prefers_phone ? "default" : "secondary"} className="text-[10px]">{o.prefers_phone ? "Oui" : "Non"}</Badge></TableCell>
+                      <TableCell><TicketCountBadge count={oTickets.length} /></TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(o)}><Pencil className="h-3.5 w-3.5 mr-2" /> Modifier</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm(o.id)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Supprimer</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow key={`${o.id}-tickets`}>
+                        <TableCell colSpan={7} className="bg-muted/20 px-4 py-3">
+                          <TicketMiniList tickets={oTickets} emptyLabel="Aucun ticket pour ce propriétaire" />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>

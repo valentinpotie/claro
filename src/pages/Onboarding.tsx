@@ -8,13 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
+import { EscalationDelaySettings } from "@/components/EscalationDelaySettings";
 
-import { ArtisanFormFields, artisanSpecialtyLabels, defaultArtisanSpecialty } from "@/components/ArtisanFormFields";
+import { ArtisanFormFields, artisanSpecialtyLabels } from "@/components/ArtisanFormFields";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AgencySetupLoader } from "@/components/AgencySetupLoader";
 import {
   HardHat, ArrowRight, ArrowLeft, Check, Building2, Settings2, Wrench, Rocket,
-  Plus, Trash2, Pencil, Inbox, Copy, CheckCircle2, Sparkles, LogOut,
+  Plus, Pencil, Inbox, Copy, CheckCircle2, Sparkles, LogOut,
 } from "lucide-react";
 
 // ── Email domain → agency name ───────────────────────────────────────────────
@@ -107,11 +108,10 @@ export default function Onboarding() {
   // Étape 2 — Règles
   const [threshold, setThreshold] = useState(settings.delegation_threshold);
   const [alwaysAsk, setAlwaysAsk] = useState(settings.always_ask_owner);
-  const [escalationDays, setEscalationDays] = useState(settings.escalation_delay_days);
 
   // Étape 2 — Artisans
   const [newArtisan, setNewArtisan] = useState<Omit<Artisan, "id">>({
-    nom: "", specialite: defaultArtisanSpecialty, ville: "", address: "", telephone: "", email: "",
+    nom: "", specialites: [], ville: "", address: "", telephone: "", email: "",
     note: 5, interventions: 0, delaiMoyen: "48h",
   });
   const [showForm, setShowForm] = useState(false);
@@ -120,7 +120,6 @@ export default function Onboarding() {
   const [emailCopied, setEmailCopied] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [setupComplete, setSetupComplete] = useState(false);
-  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -148,7 +147,7 @@ export default function Onboarding() {
     }
   }, [loading, finishing, profile?.agency_id, settings.onboarding_completed, navigate]);
 
-  const goNext = (force?: boolean) => {
+  const goNext = () => {
     if (step === 0) {
       const normalizedAgencyName = agencyName.trim() || "Mon Agence";
       updateSettings({
@@ -157,14 +156,8 @@ export default function Onboarding() {
       });
     }
     if (step === 1) {
-      updateSettings({ delegation_threshold: threshold, always_ask_owner: alwaysAsk, escalation_delay_days: escalationDays });
+      updateSettings({ delegation_threshold: threshold, always_ask_owner: alwaysAsk });
     }
-    // Warn if artisan form is open with data filled
-    if (step === 2 && !force && showForm && newArtisan.nom.trim()) {
-      setShowUnsavedWarning(true);
-      return;
-    }
-    setShowUnsavedWarning(false);
     const nextStep = step + 1;
     setStep(nextStep);
     localStorage.setItem("onboardingStep", nextStep.toString());
@@ -179,9 +172,8 @@ export default function Onboarding() {
   const handleAddArtisan = () => {
     if (!newArtisan.nom.trim()) return;
     setPendingArtisans(prev => [...prev, newArtisan]);
-    setNewArtisan({ nom: "", specialite: defaultArtisanSpecialty, ville: "", address: "", telephone: "", email: "", note: 5, interventions: 0, delaiMoyen: "48h" });
+    setNewArtisan({ nom: "", specialites: [], ville: "", address: "", telephone: "", email: "", note: 5, interventions: 0, delaiMoyen: "48h" });
     setShowForm(false);
-    setShowUnsavedWarning(false);
   };
 
   const handleFinish = async () => {
@@ -292,10 +284,11 @@ export default function Onboarding() {
                       type="number" min={0} step={50}
                       value={threshold}
                       onChange={e => setThreshold(Number(e.target.value))}
-                      className="pl-8"
+                      className="pl-8 pr-16"
                       placeholder="Seuil de délégation (€)"
                     />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground/60 pointer-events-none">TTC</span>
                   </div>
                 )}
 
@@ -314,16 +307,8 @@ export default function Onboarding() {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm font-semibold">Relances automatiques</p>
-                  <p className="text-xs text-muted-foreground">Configurez les relances envoyées automatiquement en l'absence de réponse du propriétaire ou de l'artisan.</p>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Délai avant relance</span>
-                    <span className="text-sm font-semibold">{escalationDays} jour{escalationDays > 1 ? "s" : ""}</span>
-                  </div>
-                  <Slider value={[escalationDays]} onValueChange={([v]) => setEscalationDays(v)} min={1} max={7} step={1} />
-                  <p className="text-xs text-muted-foreground mt-1">Nombre de jours sans réponse avant relance automatique</p>
-                </div>
+                <EscalationDelaySettings settings={settings} onChange={updateSettings} />
 
               </div>
 
@@ -347,82 +332,93 @@ export default function Onboarding() {
               <p className="text-sm text-muted-foreground">Ces artisans seront proposés en premier lors de la phase de contact d'un artisan. Vous pourrez en ajouter d'autres plus tard.</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Liste artisans */}
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {pendingArtisans.map((a, i) => (
-                  <div key={i} className="rounded-[4px] border border-input bg-muted/30">
-                    {editingArtisanIndex === i && editArtisanDraft ? (
-                      <div className="p-3 space-y-3">
-                        <ArtisanFormFields value={editArtisanDraft} onChange={setEditArtisanDraft} />
-                        <div className="flex gap-2 justify-end">
-                          <Button size="sm" variant="ghost" onClick={() => { setEditingArtisanIndex(null); setEditArtisanDraft(null); }}>Annuler</Button>
-                          <Button size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/80"
-                            onClick={() => {
-                              setPendingArtisans(prev => prev.map((x, j) => j === i ? editArtisanDraft : x));
-                              setEditingArtisanIndex(null);
-                              setEditArtisanDraft(null);
-                            }}
-                            disabled={!editArtisanDraft.nom.trim()}
-                          >
-                            <Check className="h-3.5 w-3.5 mr-1" /> Enregistrer
-                          </Button>
-                        </div>
+              {/* Liste artisans — résumé seul, form d'édition sorti du scroll */}
+              {pendingArtisans.length > 0 && (
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {pendingArtisans.map((a, i) => editingArtisanIndex === i ? null : (
+                    <div key={i} className="rounded-[4px] border border-input bg-muted/30 flex items-center justify-between px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{a.nom}</p>
+                        <p className="text-xs text-muted-foreground">{a.specialites.map(s => artisanSpecialtyLabels[s] ?? s).join(", ") || "—"} · {a.ville}</p>
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between px-3 py-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{a.nom}</p>
-                          <p className="text-xs text-muted-foreground">{artisanSpecialtyLabels[a.specialite] ?? a.specialite} · {a.ville}</p>
-                        </div>
+                      {editingArtisanIndex !== i && (
                         <button
                           className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           onClick={() => { setEditingArtisanIndex(i); setEditArtisanDraft({ ...a }); }}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Formulaire ajout */}
-              {showForm ? (
+              {/* Formulaire édition — hors du scroll, pleine largeur */}
+              {editingArtisanIndex !== null && editArtisanDraft && (
                 <div className="rounded-[4px] border border-input p-3 space-y-3 bg-muted/20">
-                  <p className="text-xs font-medium text-muted-foreground">Nouvel artisan</p>
-                  <ArtisanFormFields value={newArtisan} onChange={setNewArtisan} />
+                  <p className="text-xs font-medium text-muted-foreground">Modifier l'artisan</p>
+                  <ArtisanFormFields value={editArtisanDraft} onChange={setEditArtisanDraft} />
                   <div className="flex gap-2 justify-end">
-                    <Button size="sm" onClick={() => { setShowForm(false); setShowUnsavedWarning(false); }}>Annuler</Button>
-                    <Button size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/80" onClick={handleAddArtisan} disabled={!newArtisan.nom.trim()}>
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Ajouter un artisan
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingArtisanIndex(null); setEditArtisanDraft(null); }}>Annuler</Button>
+                    <Button size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/80"
+                      onClick={() => {
+                        setPendingArtisans(prev => prev.map((x, j) => j === editingArtisanIndex ? editArtisanDraft : x));
+                        setEditingArtisanIndex(null);
+                        setEditArtisanDraft(null);
+                      }}
+                      disabled={!editArtisanDraft.nom.trim()}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Enregistrer
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <Button size="sm" className="w-full gap-2 rounded-[4px] bg-foreground text-background hover:bg-foreground/80" onClick={() => setShowForm(true)}>
-                  <Plus className="h-4 w-4" /> Ajouter un artisan
-                </Button>
               )}
 
-              {/* Unsaved artisan warning */}
-              {showUnsavedWarning && (
-                <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
-                  <p className="text-sm font-medium text-warning">Artisan non enregistré</p>
-                  <p className="text-xs text-muted-foreground">Vous avez commencé à remplir un artisan sans l'enregistrer. Souhaitez-vous continuer sans l'ajouter ?</p>
-                  <div className="flex gap-2 justify-end">
-                    <Button size="sm" variant="outline" onClick={() => setShowUnsavedWarning(false)}>Revenir au formulaire</Button>
-                    <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setShowForm(false); setShowUnsavedWarning(false); goNext(true); }}>Continuer sans ajouter</Button>
+              {/* Formulaire ajout — masqué quand édition en cours */}
+              {editingArtisanIndex === null && (
+                showForm ? (
+                  <div className="rounded-[4px] border border-input p-3 space-y-3 bg-muted/20">
+                    <p className="text-xs font-medium text-muted-foreground">Nouvel artisan</p>
+                    <ArtisanFormFields value={newArtisan} onChange={setNewArtisan} />
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" onClick={() => setShowForm(false)}>Annuler</Button>
+                      <Button size="sm" className="rounded-[4px] bg-foreground text-background hover:bg-foreground/80" onClick={handleAddArtisan} disabled={!newArtisan.nom.trim()}>
+                        Valider
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <Button size="sm" className="w-full gap-2 rounded-[4px] bg-foreground text-background hover:bg-foreground/80" onClick={() => setShowForm(true)}>
+                    <Plus className="h-4 w-4" /> Ajouter un artisan
+                  </Button>
+                )
               )}
 
               <div className="flex justify-between">
                 <Button variant="ghost" onClick={goBack} className="gap-2 text-muted-foreground hover:text-foreground hover:bg-transparent">
                   <ArrowLeft className="h-4 w-4" /> Précédent
                 </Button>
-                <Button onClick={() => goNext()} className="gap-2">
-                  Suivant <ArrowRight className="h-4 w-4" />
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={showForm || editingArtisanIndex !== null ? 0 : undefined}>
+                        <Button
+                          onClick={() => goNext()}
+                          className="gap-2"
+                          disabled={showForm || editingArtisanIndex !== null}
+                        >
+                          Suivant <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {(showForm || editingArtisanIndex !== null) && (
+                      <TooltipContent side="top">
+                        L'ajout de l'artisan n'est pas terminé
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </CardContent>
           </Card>
@@ -513,7 +509,7 @@ export default function Onboarding() {
                 </div>
                 <div className="flex items-center justify-between rounded-[4px] bg-muted/40 px-3 py-2 text-sm">
                   <span className="text-muted-foreground">Délai de relances automatiques</span>
-                  <span className="font-medium">{settings.escalation_delay_days} jour{settings.escalation_delay_days > 1 ? "s" : ""}</span>
+                  <span className="font-medium">{settings.escalation_delay_owner_days} j (proprio) · {settings.escalation_delay_artisan_days} j (artisan) · {settings.escalation_delay_tenant_days} j (locataire)</span>
                 </div>
                 <div className="flex items-center justify-between rounded-[4px] bg-muted/40 px-3 py-2 text-sm">
                   <span className="text-muted-foreground">Artisans configurés</span>

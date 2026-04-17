@@ -1,26 +1,16 @@
 import { useState, useEffect } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
-import { useTickets } from "@/contexts/TicketContext";
 import { Button } from "@/components/ui/button";
 import { Sparkles, X } from "lucide-react";
 
 export function GuidedTour({ onHighlight }: { onHighlight?: (active: boolean) => void }) {
-  const { settings, updateSettings } = useSettings();
-  const { tickets } = useTickets();
+  const { updateSettings } = useSettings();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     onHighlight?.(visible);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
-
-  // Auto-show on first access
-  useEffect(() => {
-    if (!settings.tour_completed && tickets.length > 0) {
-      const timer = setTimeout(() => setVisible(true), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [settings.tour_completed, tickets.length]);
 
   const close = () => {
     setVisible(false);

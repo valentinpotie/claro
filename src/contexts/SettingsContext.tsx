@@ -15,11 +15,29 @@ const logSettings = (...args: unknown[]) => {
 const STORAGE_KEY = "claro_settings";
 
 const defaultTemplates = [
+  // ── Artisan ─────────────────────────────────────────────────────────────────
   { id: "t1", name: "Demande de devis", target: "artisan" as const, useCase: "Demande de devis suite à un signalement", subject: "Demande de devis — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous avons un besoin d'intervention pour un problème de {{categorie}} au {{adresse}} ({{lot}}).\n\nDescription : {{description}}\n\nMerci de nous adresser votre devis dans les meilleurs délais.\n\nCordialement,\n{{nom_agence}}" },
   { id: "t2", name: "Confirmation intervention", target: "artisan" as const, useCase: "Confirmation de la date d'intervention", subject: "Confirmation d'intervention — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous confirmons votre intervention prévue le {{date_intervention}} au {{adresse}} ({{lot}}).\n\nLocataire : {{nom_locataire}} — {{telephone_locataire}}\n\nMerci.\n\n{{nom_agence}}" },
+  { id: "t8", name: "Devis validé — confirmation artisan", target: "artisan" as const, useCase: "auto:artisan_devis_valide", subject: "Devis validé — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nLe devis de {{montant}} € concernant le bien au {{adresse}} a été validé. Merci de confirmer votre disponibilité pour l'intervention.\n\nLocataire : {{nom_locataire}} — {{telephone_locataire}}\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t9", name: "Paiement facture", target: "artisan" as const, useCase: "auto:artisan_facture_payee", subject: "Paiement transmis — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous avons bien reçu et validé votre facture de {{montant}} €. Le paiement vous a été transmis.\n\nMerci pour votre intervention au {{adresse}}.\n\nCordialement,\n{{nom_agence}}" },
+  // ── Locataire ────────────────────────────────────────────────────────────────
   { id: "t3", name: "Notification intervention", target: "locataire" as const, useCase: "Prévenir le locataire d'une intervention", subject: "Intervention prévue — {{adresse}}", body: "Bonjour {{nom_locataire}},\n\nUn artisan interviendra le {{date_intervention}} à votre domicile ({{adresse}}, {{lot}}) pour résoudre le problème signalé.\n\nArtisan : {{nom_artisan}} — {{telephone_artisan}}\n\nMerci de prévoir votre présence ou de nous indiquer un créneau.\n\nCordialement,\n{{nom_agence}}" },
-  { id: "t4", name: "Demande d'accord", target: "proprietaire" as const, useCase: "Envoi du devis pour accord", subject: "Devis à approuver — {{adresse}}", body: "Bonjour {{nom_proprietaire}},\n\nSuite au signalement au {{adresse}} ({{lot}}), nous avons reçu un devis de {{nom_artisan}} pour un montant de {{montant}} €.\n\nDescription : {{description}}\n\nMerci de nous confirmer votre accord.\n\nCordialement,\n{{nom_agence}}" },
-  { id: "t5", name: "Clôture dossier", target: "proprietaire" as const, useCase: "Informer le propriétaire de la clôture", subject: "Dossier clôturé — {{adresse}}", body: "Bonjour {{nom_proprietaire}},\n\nLe dossier concernant le problème signalé au {{adresse}} ({{lot}}) a été clôturé suite à l'intervention de {{nom_artisan}}.\n\nMontant facturé : {{montant}} €.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t10", name: "Artisan en route (devis auto-validé)", target: "locataire" as const, useCase: "auto:locataire_artisan_vient", subject: "Votre demande avance — {{adresse}}", body: "Bonjour {{nom_locataire}},\n\nVotre demande est en cours de traitement. Le devis a été validé et l'artisan {{nom_artisan}} va prochainement prendre contact avec vous pour convenir d'une date d'intervention au {{adresse}}.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t18", name: "Intervention confirmée par le propriétaire", target: "locataire" as const, useCase: "auto:locataire_proprio_approuve", subject: "Intervention confirmée — {{adresse}}", body: "Bonjour {{nom_locataire}},\n\nL'intervention au {{adresse}} a été confirmée par le propriétaire. L'artisan {{nom_artisan}} va prochainement prendre contact avec vous pour convenir d'une date de passage.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t11", name: "Demande de preuve de passage", target: "locataire" as const, useCase: "auto:locataire_preuve_passage", subject: "Confirmation d'intervention — {{adresse}}", body: "Bonjour {{nom_locataire}},\n\nL'artisan nous a transmis sa facture suite à son intervention au {{adresse}}. Pourriez-vous nous faire parvenir une photo ou une vidéo confirmant que l'intervention a bien eu lieu à votre domicile ?\n\nMerci.\n\n{{nom_agence}}" },
+  { id: "t12", name: "Clôture dossier (locataire)", target: "locataire" as const, useCase: "auto:locataire_cloture", subject: "Dossier clôturé — {{adresse}}", body: "Bonjour {{nom_locataire}},\n\nL'intervention à votre domicile est terminée et votre dossier est désormais clôturé. N'hésitez pas à nous contacter pour tout nouveau problème.\n\nCordialement,\n{{nom_agence}}" },
+  // ── Propriétaire ─────────────────────────────────────────────────────────────
+  { id: "t4", name: "Demande d'accord", target: "proprietaire" as const, useCase: "auto:proprietaire_accord_devis", subject: "Devis à approuver — {{adresse}}", body: "Bonjour {{nom_proprietaire}},\n\nSuite au signalement au {{adresse}} ({{lot}}), nous avons reçu un devis de {{nom_artisan}} pour un montant de {{montant}} €.\n\nDescription : {{description}}\n\nMerci de nous confirmer votre accord dans les meilleurs délais.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t5", name: "Clôture dossier (propriétaire)", target: "proprietaire" as const, useCase: "auto:proprietaire_cloture", subject: "Dossier clôturé — {{adresse}}", body: "Bonjour {{nom_proprietaire}},\n\nLe dossier concernant le problème signalé au {{adresse}} ({{lot}}) a été clôturé suite à l'intervention de {{nom_artisan}}.\n\nMontant facturé : {{montant}} €.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t13", name: "Compte-rendu facture", target: "proprietaire" as const, useCase: "auto:proprietaire_facture", subject: "Compte-rendu travaux — {{adresse}}", body: "Bonjour {{nom_proprietaire}},\n\nVoici le compte-rendu d'intervention pour votre bien au {{adresse}} ({{lot}}). La facture de {{montant}} € a été réglée.\n\nCordialement,\n{{nom_agence}}" },
+  // ── Intervention ─────────────────────────────────────────────────────────────
+  { id: "t14", name: "Relance artisan — date d'intervention", target: "artisan" as const, useCase: "auto:artisan_relance_date", subject: "Relance — Date d'intervention {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous attendons que vous preniez contact avec le locataire {{nom_locataire}} ({{telephone_locataire}}) pour fixer une date d'intervention au {{adresse}}.\n\nMerci de nous confirmer la date retenue dans les meilleurs délais.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t15", name: "Contact locataire — confirmation artisan", target: "locataire" as const, useCase: "auto:locataire_contact_artisan", subject: "Votre dossier — {{adresse}}", body: "Bonjour {{nom_locataire}},\n\nL'artisan chargé de votre intervention au {{adresse}} devrait vous avoir contacté pour convenir d'une date de passage. Avez-vous été contacté ?\n\nSi oui, pourriez-vous nous indiquer la date et l'heure convenues ?\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t16", name: "Demande de preuves — artisan", target: "artisan" as const, useCase: "auto:artisan_demande_preuve", subject: "Preuves d'intervention — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nSuite à votre intervention au {{adresse}}, pourriez-vous nous transmettre des photos attestant de la réalisation des travaux ?\n\nMerci de répondre à ce message en joignant les éléments demandés.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t17", name: "Relance facture — artisan", target: "artisan" as const, useCase: "auto:artisan_relance_facture", subject: "Facture en attente — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous n'avons pas encore reçu votre facture concernant l'intervention au {{adresse}}. Pourriez-vous nous la transmettre dans les meilleurs délais ?\n\nCelle-ci est nécessaire pour finaliser le dossier.\n\nCordialement,\n{{nom_agence}}" },
+  // ── Syndic ───────────────────────────────────────────────────────────────────
+  { id: "t6", name: "Signalement syndic", target: "syndic" as const, useCase: "auto:contact_syndic", subject: "Signalement incident — {{adresse}}", body: "Bonjour,\n\nNous vous signalons un incident dans les parties communes de la résidence au {{adresse}}.\n\nDescription : {{description}}\n\nMerci de bien vouloir prendre en charge ce problème dans les meilleurs délais.\n\nCordialement,\n{{nom_agence}}" },
+  { id: "t7", name: "Relance syndic", target: "syndic" as const, useCase: "auto:relance_syndic", subject: "Relance — Incident {{adresse}}", body: "Bonjour,\n\nSans réponse de votre part depuis notre précédent contact concernant l'incident au {{adresse}}, nous nous permettons de vous relancer.\n\nMerci de bien vouloir traiter ce signalement dans les meilleurs délais.\n\nCordialement,\n{{nom_agence}}" },
 ];
 
 const defaultSettings: AgencySettings = {
@@ -29,7 +47,9 @@ const defaultSettings: AgencySettings = {
   email_inbound: "",
   delegation_threshold: 250,
   always_ask_owner: false,
-  escalation_delay_days: 3,
+  escalation_delay_owner_days: 3,
+  escalation_delay_artisan_days: 3,
+  escalation_delay_tenant_days: 3,
   escalation_reminders_count: 3,
   onboarding_completed: false,
   enabled_priorities: ["urgente", "haute", "normale", "basse"] as TicketPriority[],
@@ -182,7 +202,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
     if ("delegation_threshold" in data) settingsPayload.delegation_threshold = next.delegation_threshold;
     if ("always_ask_owner" in data) settingsPayload.always_ask_owner = next.always_ask_owner;
-    if ("escalation_delay_days" in data) settingsPayload.escalation_delay_days = next.escalation_delay_days;
+    if ("escalation_delay_owner_days" in data) settingsPayload.escalation_delay_owner_days = next.escalation_delay_owner_days;
+    if ("escalation_delay_artisan_days" in data) settingsPayload.escalation_delay_artisan_days = next.escalation_delay_artisan_days;
+    if ("escalation_delay_tenant_days" in data) settingsPayload.escalation_delay_tenant_days = next.escalation_delay_tenant_days;
     if ("escalation_reminders_count" in data) settingsPayload.escalation_reminders_count = next.escalation_reminders_count;
     if ("accountant_email" in data) settingsPayload.accountant_email = next.accountant_email;
     if ("enabled_priorities" in data) settingsPayload.enabled_priorities = next.enabled_priorities;
@@ -209,7 +231,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         is_active: true,
       }));
       if (payload.length > 0) {
-        await supabase.from("email_templates").upsert(payload, { onConflict: "id" });
+        await supabase.from("email_templates").upsert(payload, { onConflict: "agency_id,use_case" });
       }
     }
   }, [settingsRowId]);
@@ -305,7 +327,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           agency_id: resolvedAgencyId,
           delegation_threshold: next.delegation_threshold,
           always_ask_owner: next.always_ask_owner,
-          escalation_delay_days: next.escalation_delay_days,
+          escalation_delay_owner_days: next.escalation_delay_owner_days,
+          escalation_delay_artisan_days: next.escalation_delay_artisan_days,
+          escalation_delay_tenant_days: next.escalation_delay_tenant_days,
           escalation_reminders_count: next.escalation_reminders_count,
           accountant_email: next.accountant_email,
           enabled_priorities: next.enabled_priorities,

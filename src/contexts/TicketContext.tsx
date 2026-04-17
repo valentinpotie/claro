@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Ticket, Artisan, AIJournalEntry, Quote, TicketMessage, Responsabilite, TicketCategory, TicketPriority, TimeSlot, categoryLabels, InboundSignalement } from "@/data/types";
+import { Ticket, Artisan, AIJournalEntry, Quote, TicketMessage, Responsabilite, TicketCategory, TicketPriority, TimeSlot, categoryLabels, InboundSignalement, TicketDocument, TicketDocumentType } from "@/data/types";
 import { initialTickets, initialArtisans } from "@/data/mockData";
 import { useSettings } from "@/contexts/SettingsContext";
 import { USE_SUPABASE, supabase } from "@/lib/supabase";
@@ -16,6 +16,7 @@ import {
   mapValidationToDb,
 } from "@/lib/supabaseData";
 import { toast } from "sonner";
+import { getAutoMessageContent, buildTemplateVars } from "@/lib/templateUtils";
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -33,18 +34,21 @@ interface TicketContextType {
   createTicket: (data: { titre: string; description: string; categorie: TicketCategory; priorite: TicketPriority; urgence: boolean; locataireNom: string; locataireTel: string; locataireEmail: string; adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string; tenant_id?: string; property_id?: string; owner_id?: string; mailSource?: { from: string; to: string; subject: string; body: string; receivedAt: string } }) => Ticket;
   updateTicket: (id: string, data: Partial<Ticket>) => void;
   qualifyTicket: (id: string) => void;
-  sendArtisanContact: (ticketId: string, artisanId: string) => void;
+  sendArtisanContact: (ticketId: string, artisanId: string, overrideContent?: string, overrideSubject?: string) => void;
   receiveQuote: (ticketId: string) => void;
   validateQuote: (ticketId: string, quoteId?: string) => void;
   ownerRespond: (ticketId: string, approved: boolean) => void;
   confirmPassage: (ticketId: string, confirmed: boolean) => void;
+  advanceToFacturation: (ticketId: string) => void;
   validateFacture: (ticketId: string) => void;
+  finalizeFacture: (ticketId: string) => void;
   closeTicket: (ticketId: string) => void;
   contactSyndic: (ticketId: string) => void;
   relanceSyndic: (ticketId: string) => void;
   escaladeSyndic: (ticketId: string) => void;
   resolveSyndic: (ticketId: string) => void;
-  addMessage: (ticketId: string, artisanId: string, content: string, from: "agence" | "artisan") => void;
+  addMessage: (ticketId: string, threadKey: string, content: string, from: "agence" | "artisan", subject?: string, templateId?: string) => void;
+  fetchTicketMessages: (ticketId: string) => Promise<void>;
   addArtisan: (data: Omit<Artisan, "id">, overrideAgencyId?: string) => void;
   updateArtisan: (id: string, data: Partial<Omit<Artisan, "id">>) => void;
   removeArtisan: (id: string) => void;
@@ -53,6 +57,9 @@ interface TicketContextType {
   getTicket: (id: string) => Ticket | undefined;
   getArtisan: (id: string) => Artisan | undefined;
   validateSignalement: (signalement: InboundSignalement, overrides?: Partial<{ title: string; category: TicketCategory; priority: TicketPriority; responsibility: Responsabilite; description: string; urgent: boolean; tenantName: string; tenantPhone: string; tenantEmail: string; propertyAddress: string; propertyUnit: string; ownerName: string; ownerPhone: string; ownerEmail: string; tenant_id: string; property_id: string; owner_id: string }>) => Promise<Ticket>;
+  fetchTicketDocuments: (ticketId: string) => Promise<void>;
+  uploadTicketDocument: (ticketId: string, file: File, documentType: TicketDocumentType, description?: string) => Promise<TicketDocument>;
+  updateTicketDocument: (ticketId: string, docId: string, patch: { description?: string; document_type?: TicketDocumentType; file_name?: string }) => Promise<void>;
 }
 
 const TicketContext = createContext<TicketContextType | null>(null);
@@ -61,14 +68,6 @@ export function useTickets() {
   const ctx = useContext(TicketContext);
   if (!ctx) throw new Error("useTickets must be inside TicketProvider");
   return ctx;
-}
-
-let ticketCounter = 1;
-
-function generateUniqueRef() {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `CLR-${ts}-${rand}`;
 }
 
 function splitFullName(fullName: string) {
@@ -97,6 +96,18 @@ function buildTicketPatch(data: Partial<Ticket>) {
   if ("dateInterventionPrevue" in data) payload.planned_intervention_date = data.dateInterventionPrevue ?? null;
   if ("passageConfirme" in data) payload.passage_confirmed = data.passageConfirme ?? null;
   if ("factureValidee" in data) payload.invoice_validated = data.factureValidee ?? null;
+  if ("locataire" in data && data.locataire) {
+    payload.tenant_name  = data.locataire.nom   ?? null;
+    payload.tenant_phone = data.locataire.telephone ?? null;
+    payload.tenant_email = data.locataire.email ?? null;
+  }
+  if ("bien" in data && data.bien) {
+    payload.property_address     = data.bien.adresse        ?? null;
+    payload.property_unit        = data.bien.lot            ?? null;
+    payload.property_owner_name  = data.bien.proprietaire   ?? null;
+    payload.property_owner_phone = data.bien.telephoneProprio ?? null;
+    payload.property_owner_email = data.bien.emailProprio   ?? null;
+  }
 
   return payload;
 }
@@ -154,7 +165,13 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!loading) {
-      setTickets(fetchedTickets);
+      // Preserve locally-loaded signed-URL documents — fetchHydratedTickets always returns documents: []
+      setTickets((prev) =>
+        fetchedTickets.map((t) => {
+          const existing = prev.find((p) => p.id === t.id);
+          return existing?.documents?.length ? { ...t, documents: existing.documents } : t;
+        }),
+      );
       setArtisans(fetchedArtisans);
       setHydrated(true);
     }
@@ -242,7 +259,15 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
               const result = await fetchHydratedTickets(settings.agency_id);
               const updatedTicket = result.tickets.find((ticket) => ticket.id === updatedId);
               if (!updatedTicket) return;
-              setTickets((prev) => prev.map((ticket) => (ticket.id === updatedTicket.id ? updatedTicket : ticket)));
+              setTickets((prev) =>
+                prev.map((ticket) => {
+                  if (ticket.id !== updatedTicket.id) return ticket;
+                  // Preserve locally-loaded signed-URL documents — fetchHydratedTickets always returns documents: []
+                  return updatedTicket.documents?.length
+                    ? updatedTicket
+                    : { ...updatedTicket, documents: ticket.documents };
+                }),
+              );
             } catch (error) {
               console.error("Failed to hydrate updated ticket", error);
             }
@@ -331,7 +356,6 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
 
   const simulateAI = useCallback((ticketId: string, actions: { msg: string; type: AIJournalEntry["type"] }[], onComplete?: () => void) => {
     setActiveTicketId(ticketId);
-    setShowJournal(true);
     actions.forEach((action, i) => {
       const entryId = `local-${Date.now()}-${ticketId}-${i}`;
       setTimeout(() => {
@@ -354,12 +378,50 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     setTickets(prev => prev.map(t => t.id === id ? { ...t, ...data, dateMaj: new Date().toISOString().slice(0, 10) } : t));
   }, []);
 
+  /** Resolves the content of an automated message using the agency's customised template when available. */
+  const autoContent = useCallback((useCase: string, ticket: Ticket, artisan: Artisan | null | undefined, fallback: string) => {
+    const vars = buildTemplateVars(ticket, artisan, settings.agency_name);
+    return getAutoMessageContent(settings.email_templates ?? [], useCase, vars, fallback);
+  }, [settings.email_templates, settings.agency_name]);
+
+  /** Adds an outbound automated message to local state and persists it to DB. */
+  const persistOutboundMessage = useCallback((ticketId: string, threadKey: string, content: string) => {
+    const msg: TicketMessage = {
+      id: `msg-auto-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      from: "agence",
+      content,
+      timestamp: new Date().toISOString(),
+    };
+    setTickets(prev => prev.map(t => t.id === ticketId ? {
+      ...t, messages: { ...t.messages, [threadKey]: [...(t.messages[threadKey] || []), msg] }
+    } : t));
+    void (async () => {
+      if (!USE_SUPABASE) return;
+      if (ticketId.startsWith("local-")) return;
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(threadKey);
+        const recipientTypeMap: Record<string, string> = {
+          locataire: "tenant", proprietaire: "owner", syndic: "syndic", assurance: "insurance",
+        };
+        await supabase.from("ticket_messages").insert({
+          ticket_id: ticketId,
+          artisan_id: isUuid ? threadKey : null,
+          recipient_type: isUuid ? "artisan" : (recipientTypeMap[threadKey] ?? threadKey),
+          from_role: "agency",
+          content,
+          sent_at: msg.timestamp,
+        });
+      } catch (error) {
+        console.error("Failed to persist automated message", error);
+      }
+    })();
+  }, []);
+
   const createTicket = (data: { titre: string; description: string; categorie: TicketCategory; priorite: TicketPriority; urgence: boolean; locataireNom: string; locataireTel: string; locataireEmail: string; adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string; tenant_id?: string; property_id?: string; owner_id?: string; mailSource?: { from: string; to: string; subject: string; body: string; receivedAt: string } }) => {
     const now = new Date().toISOString();
-    const localRef = generateUniqueRef();
     const newTicket: Ticket = {
       id: `local-${Date.now()}`,
-      reference: localRef,
+      reference: "CLR-...",
       source: data.mailSource ? "email" : "manual",
       titre: data.titre,
       description: data.description,
@@ -377,6 +439,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       quotes: [],
       messages: {},
       photos: [],
+      documents: [],
       notes: [],
       disponibilitesArtisan: [],
       disponibilitesLocataire: [],
@@ -391,7 +454,6 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       const dbPayload = {
         agency_id: isValidAgency ? agencyId : null,
         source: data.mailSource ? "email" : "manual",
-        reference: localRef,
         title: data.titre,
         description: data.description,
         status: mapStatusToDb("signale"),
@@ -419,7 +481,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
             return;
           }
           // Replace local placeholder id with the real DB id
-          setTickets((prev) => prev.map((t) => (t.id === newTicket.id ? { ...t, id: inserted.id, reference: inserted.reference ?? localRef } : t)));
+          setTickets((prev) => prev.map((t) => (t.id === newTicket.id ? { ...t, id: inserted.id, reference: inserted.reference ?? t.reference } : t)));
 
           if (data.mailSource) {
             await supabase.from("ticket_mail_sources").insert({
@@ -476,13 +538,15 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     }
   }, [tickets, simulateAI, syncTicketPatch, update]);
 
-  const sendArtisanContact = useCallback((ticketId: string, artisanId: string) => {
+  const sendArtisanContact = useCallback((ticketId: string, artisanId: string, overrideContent?: string, overrideSubject?: string) => {
     const artisan = artisans.find(a => a.id === artisanId);
     const ticket = tickets.find(t => t.id === ticketId);
     if (!artisan || !ticket) return;
+    const defaultContent = `Bonjour ${artisan.nom},\n\nNous avons un problème de ${ticket.categorie} au ${ticket.bien.adresse}.\n\nCoordonnées du locataire :\n- Nom : ${ticket.locataire.nom}\n- Téléphone : ${ticket.locataire.telephone}\n- Email : ${ticket.locataire.email}\n\nCoordonnées du propriétaire :\n- Nom : ${ticket.bien.proprietaire}\n- Téléphone : ${ticket.bien.telephoneProprio}\n- Email : ${ticket.bien.emailProprio}\n\nPouvez-vous vous déplacer pour faire un diagnostic sur place ?\n\nMerci.`;
     const msg: TicketMessage = {
       id: `msg-${Date.now()}`, from: "agence",
-      content: `Bonjour ${artisan.nom},\n\nNous avons un problème de ${ticket.categorie} au ${ticket.bien.adresse}.\n\nCoordonnées du locataire :\n- Nom : ${ticket.locataire.nom}\n- Téléphone : ${ticket.locataire.telephone}\n- Email : ${ticket.locataire.email}\n\nCoordonnées du propriétaire :\n- Nom : ${ticket.bien.proprietaire}\n- Téléphone : ${ticket.bien.telephoneProprio}\n- Email : ${ticket.bien.emailProprio}\n\nPouvez-vous vous déplacer pour faire un diagnostic sur place ?\n\nMerci.`,
+      content: overrideContent ?? defaultContent,
+      subject: overrideSubject,
       timestamp: new Date().toISOString(),
     };
     setTickets(prev => prev.map(t => t.id === ticketId ? {
@@ -498,8 +562,10 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         await supabase.from("ticket_messages").insert({
           ticket_id: ticketId,
           artisan_id: artisanId,
+          recipient_type: "artisan",
           from_role: "agency",
           content: msg.content,
+          subject: msg.subject ?? null,
           sent_at: msg.timestamp,
         });
       } catch (error) {
@@ -618,6 +684,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         { msg: `Demande d'accord envoyée à ${ticket.bien.proprietaire} (${ticket.bien.emailProprio})`, type: "message_sent" },
         { msg: "En attente de l'accord propriétaire…", type: "notification" },
       ], () => {
+        persistOutboundMessage(ticketId, "proprietaire", autoContent("auto:proprietaire_accord_devis", ticket, artisan, `Bonjour, nous sollicitons votre accord pour le devis de ${selectedQuote.montant} € concernant votre bien au ${ticket.bien.adresse}. Merci de nous confirmer votre accord.`));
         update(ticketId, { status: "validation_proprio", validationStatus: "en_attente" });
         void syncTicketPatch(ticketId, { status: "validation_proprio", validationStatus: "en_attente" }).catch((error) => {
           console.error("Failed to sync quote validation (owner needed)", error);
@@ -631,13 +698,16 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
         { msg: "Passage à l'étape Intervention", type: "action" },
       ], () => {
+        const artisanThreadKey = ticket.artisanId ?? selectedQuote.artisanId;
+        if (artisanThreadKey) persistOutboundMessage(ticketId, artisanThreadKey, autoContent("auto:artisan_devis_valide", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nLe devis de ${selectedQuote.montant} € a été validé. Merci de prendre contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`));
+        persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_artisan_vient", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nVotre demande a été validée. L'artisan ${artisan?.nom ?? ""} va prochainement prendre contact avec vous pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`));
         update(ticketId, { status: "intervention", validationStatus: "approuve" });
         void syncTicketPatch(ticketId, { status: "intervention", validationStatus: "approuve" }).catch((error) => {
           console.error("Failed to sync quote validation (auto)", error);
         });
       });
     }
-  }, [tickets, artisans, needsOwnerApproval, simulateAI, syncTicketPatch, update]);
+  }, [tickets, artisans, needsOwnerApproval, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
 
   const ownerRespond = useCallback((ticketId: string, approved: boolean) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -650,6 +720,8 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
         { msg: "Passage à l'étape Intervention", type: "action" },
       ], () => {
+        if (ticket.artisanId) persistOutboundMessage(ticketId, ticket.artisanId, autoContent("auto:artisan_devis_valide", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nLe propriétaire a approuvé le devis de ${ticket.quotes.find(q => q.id === ticket.selectedQuoteId)?.montant ?? ""} €. Merci de prendre contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`));
+        persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_proprio_approuve", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nL'intervention au ${ticket.bien.adresse} a été confirmée par le propriétaire. L'artisan ${artisan?.nom ?? ""} va prochainement prendre contact avec vous pour convenir d'une date de passage.`));
         update(ticketId, { status: "intervention", validationStatus: "approuve" });
         void syncTicketPatch(ticketId, { status: "intervention", validationStatus: "approuve" }).catch((error) => {
           console.error("Failed to sync owner response", error);
@@ -666,7 +738,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         });
       });
     }
-  }, [tickets, artisans, simulateAI, syncTicketPatch, update]);
+  }, [tickets, artisans, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
 
   const confirmPassage = useCallback((ticketId: string, confirmed: boolean) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -679,6 +751,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
           { msg: `Email automatique envoyé à ${ticket.locataire.nom} pour demander une preuve de passage (photo/vidéo)`, type: "message_sent" },
           { msg: "Passage à l'étape Confirmation (en attente de la preuve locataire)", type: "action" },
         ], () => {
+          persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_preuve_passage", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nL'artisan nous a transmis sa facture. Pourriez-vous nous faire parvenir une photo ou une vidéo confirmant que l'intervention a bien eu lieu à votre domicile ?`));
           update(ticketId, { status: "confirmation_passage", passageConfirme: false });
           void syncTicketPatch(ticketId, { status: "confirmation_passage", passageConfirme: false }).catch((error) => {
             console.error("Failed to sync confirmation wait state", error);
@@ -737,7 +810,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       }
       return;
     }
-  }, [tickets, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
 
   const validateFacture = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -752,12 +825,43 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Information de clôture envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
       { msg: "Passage à l'étape Clôture", type: "action" },
     ], () => {
+      if (ticket.artisanId) persistOutboundMessage(ticketId, ticket.artisanId, autoContent("auto:artisan_facture_payee", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nNous avons bien reçu et validé votre facture de ${ticket.facture!.montant} €. Le paiement vous a été transmis. Merci pour votre intervention.`));
+      persistOutboundMessage(ticketId, "proprietaire", autoContent("auto:proprietaire_facture", ticket, artisan, `Bonjour,\n\nVoici le compte-rendu d'intervention pour votre bien au ${ticket.bien.adresse}. La facture de ${ticket.facture!.montant} € a été réglée.`));
+      persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_cloture", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nL'intervention à votre domicile est terminée et votre dossier est désormais clôturé. N'hésitez pas à nous contacter pour tout nouveau problème.`));
       update(ticketId, { status: "cloture", factureValidee: true, facture: { ...ticket.facture!, payee: true } });
       void syncTicketPatch(ticketId, { status: "cloture", factureValidee: true, facture: { ...ticket.facture!, payee: true } }).catch((error) => {
         console.error("Failed to sync invoice validation", error);
       });
     });
-  }, [tickets, artisans, simulateAI, syncTicketPatch, update]);
+  }, [tickets, artisans, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+
+  /**
+   * Closes the ticket without sending any automatic messages.
+   * Used when the RecipientSelector already handles message sending.
+   */
+  const finalizeFacture = useCallback((ticketId: string) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (!ticket?.facture) return;
+    simulateAI(ticketId, [
+      { msg: `Paiement de ${ticket.facture.montant} € validé`, type: "action" },
+      { msg: "Imputation comptable enregistrée", type: "action" },
+      { msg: "Passage à l'étape Clôture", type: "action" },
+    ], () => {
+      update(ticketId, { status: "cloture", factureValidee: true, facture: { ...ticket.facture!, payee: true } });
+      void syncTicketPatch(ticketId, { status: "cloture", factureValidee: true, facture: { ...ticket.facture!, payee: true } }).catch((error) => {
+        console.error("Failed to sync invoice finalization", error);
+      });
+    });
+  }, [tickets, simulateAI, syncTicketPatch, update]);
+
+  const advanceToFacturation = useCallback((ticketId: string) => {
+    simulateAI(ticketId, [{ msg: "Passage à l'étape Facturation", type: "action" }], () => {
+      update(ticketId, { status: "facturation" });
+      void syncTicketPatch(ticketId, { status: "facturation" }).catch((error) => {
+        console.error("Failed to sync advance to facturation", error);
+      });
+    });
+  }, [simulateAI, syncTicketPatch, update]);
 
   const closeTicket = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -767,12 +871,14 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Compte-rendu complet envoyé à ${ticket.bien.proprietaire}`, type: "message_sent" },
       { msg: "Ticket archivé dans la base de données", type: "action" },
     ], () => {
+      persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_cloture", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nVotre demande a bien été traitée. Votre dossier est désormais clôturé. N'hésitez pas à nous contacter pour tout nouveau problème.`));
+      persistOutboundMessage(ticketId, "proprietaire", autoContent("auto:proprietaire_cloture", ticket, null, `Bonjour,\n\nVoici le compte-rendu complet pour votre bien au ${ticket.bien.adresse}. Le dossier "${ticket.titre}" a été clôturé avec succès.`));
       update(ticketId, { status: "cloture" });
       void syncTicketPatch(ticketId, { status: "cloture" }).catch((error) => {
         console.error("Failed to sync ticket closure", error);
       });
     });
-  }, [tickets, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
 
   const contactSyndic = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -783,12 +889,13 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Description : ${ticket.description.slice(0, 80)}…`, type: "message_sent" },
       { msg: "En attente de réponse du syndic…", type: "notification" },
     ], () => {
+      persistOutboundMessage(ticketId, "syndic", autoContent("auto:contact_syndic", ticket, null, `Bonjour,\n\nNous vous signalons un incident dans les parties communes au ${ticket.bien.adresse}.\n\nDescription : ${ticket.description}\n\nMerci de bien vouloir prendre en charge ce problème dans les meilleurs délais.`));
       update(ticketId, { status: "relance_syndic", syndicRelances: [] });
       void syncTicketPatch(ticketId, { status: "relance_syndic" }).catch((error) => {
         console.error("Failed to sync syndic contact", error);
       });
     });
-  }, [tickets, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
 
   const relanceSyndic = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -802,6 +909,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: numero >= 2 ? "Toujours sans réponse du syndic" : "En attente de réponse…", type: "notification" },
       ...(isEscalade ? [{ msg: "Seuil de relances atteint — passage en escalade", type: "action" as const }] : []),
     ], () => {
+      persistOutboundMessage(ticketId, "syndic", autoContent("auto:relance_syndic", ticket, null, `Bonjour,\n\nRelance n°${numero} — Sans réponse de votre part depuis notre précédent contact concernant l'incident au ${ticket.bien.adresse}. Merci de bien vouloir traiter ce signalement dans les meilleurs délais.`));
       if (isEscalade) {
         update(ticketId, { status: "escalade_syndic", syndicRelances: [...relances, { date, numero }], syndicEscalade: true });
         void syncTicketPatch(ticketId, { status: "escalade_syndic" }).catch((error) => {
@@ -825,7 +933,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to persist syndic followup", error);
       }
     })();
-  }, [tickets, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
 
   const escaladeSyndic = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -849,17 +957,18 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
       { msg: "Passage à la clôture", type: "action" },
     ], () => {
+      persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_cloture", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nBonne nouvelle : le syndic est intervenu et le problème au ${ticket.bien.adresse} est en cours de résolution. Votre dossier sera prochainement clôturé.`));
       update(ticketId, { status: "cloture" });
       void syncTicketPatch(ticketId, { status: "cloture" }).catch((error) => {
         console.error("Failed to sync syndic resolution", error);
       });
     });
-  }, [tickets, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
 
-  const addMessage = useCallback((ticketId: string, artisanId: string, content: string, from: "agence" | "artisan") => {
-    const msg: TicketMessage = { id: `msg-${Date.now()}`, from, content, timestamp: new Date().toISOString() };
+  const addMessage = useCallback((ticketId: string, threadKey: string, content: string, from: "agence" | "artisan", subject?: string, templateId?: string) => {
+    const msg: TicketMessage = { id: `msg-${Date.now()}`, from, content, subject, template_id: templateId, timestamp: new Date().toISOString() };
     setTickets(prev => prev.map(t => t.id === ticketId ? {
-      ...t, messages: { ...t.messages, [artisanId]: [...(t.messages[artisanId] || []), msg] }
+      ...t, messages: { ...t.messages, [threadKey]: [...(t.messages[threadKey] || []), msg] }
     } : t));
 
     // If the artisan sends the invoice by email, keep the workflow on Intervention and trigger
@@ -888,11 +997,19 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       if (!USE_SUPABASE) return;
       if (ticketId.startsWith("local-")) return;
       try {
+        // threadKey is either an artisan UUID or a stakeholder key (locataire, proprietaire, syndic, assurance)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(threadKey);
+        const recipientTypeMap: Record<string, string> = {
+          locataire: "tenant", proprietaire: "owner", syndic: "syndic", assurance: "insurance",
+        };
         await supabase.from("ticket_messages").insert({
           ticket_id: ticketId,
-          artisan_id: artisanId,
+          artisan_id: isUuid ? threadKey : null,
+          recipient_type: isUuid ? "artisan" : (recipientTypeMap[threadKey] ?? threadKey),
           from_role: from === "artisan" ? "artisan" : "agency",
           content,
+          subject: subject ?? null,
+          template_id: templateId ?? null,
           sent_at: msg.timestamp,
         });
       } catch (error) {
@@ -917,7 +1034,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         id,
         agency_id: agencyId,
         name: data.nom,
-        specialty: data.specialite,
+        specialties: data.specialites,
         city: data.ville,
         address: data.address ?? null,
         rating: data.note,
@@ -943,7 +1060,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
 
       const payload: Record<string, unknown> = {};
       if ("nom" in data) payload.name = data.nom;
-      if ("specialite" in data) payload.specialty = data.specialite;
+      if ("specialites" in data) payload.specialties = data.specialites;
       if ("ville" in data) payload.city = data.ville;
       if ("address" in data) payload.address = data.address ?? null;
       if ("note" in data) payload.rating = data.note;
@@ -991,7 +1108,20 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     const selectedSlot = overlappingSlot ?? ticket.disponibilitesArtisan[0] ?? ticket.disponibilitesLocataire[0];
     if (!selectedSlot) return;
 
-    const dateStr = `${selectedSlot.date} ${selectedSlot.heure}`;
+    // Build a proper ISO 8601 string with local timezone offset so DateTimePicker
+    // and Supabase timestamptz both handle it correctly.
+    const buildIso = (date: string, heure: string) => {
+      const [h, m] = (heure || "00:00").split(":").map(Number);
+      const d = new Date(date);
+      d.setHours(h, m, 0, 0);
+      const off = -d.getTimezoneOffset();
+      const sign = off >= 0 ? "+" : "-";
+      const absOff = Math.abs(off);
+      const offH = String(Math.floor(absOff / 60)).padStart(2, "0");
+      const offM = String(absOff % 60).padStart(2, "0");
+      return `${date}T${heure}:00${sign}${offH}:${offM}`;
+    };
+    const dateStr = buildIso(selectedSlot.date, selectedSlot.heure);
 
     update(ticketId, {
       status: "confirmation_passage",
@@ -1013,9 +1143,9 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     overrides?: Partial<{ title: string; category: TicketCategory; priority: TicketPriority; responsibility: Responsabilite; description: string; urgent: boolean; tenantName: string; tenantPhone: string; tenantEmail: string; propertyAddress: string; propertyUnit: string; ownerName: string; ownerPhone: string; ownerEmail: string; tenant_id: string; property_id: string; owner_id: string }>,
   ): Promise<Ticket> => {
     const ai = signalement.ai_suggestion ?? {};
-    const categorie = overrides?.category ?? ai.category ?? "autre";
-    const priorite = overrides?.priority ?? ai.priority ?? "normale";
-    const responsabilite = overrides?.responsibility ?? ai.responsibility ?? "proprietaire";
+    const categorie = (overrides?.category ?? ai.category ?? "autre") as TicketCategory;
+    const priorite = (overrides?.priority ?? ai.priority ?? "normale") as TicketPriority;
+    const responsabilite = (overrides?.responsibility ?? ai.responsibility ?? "proprietaire") as Responsabilite;
     const description = overrides?.description ?? ai.ai_qualified_description ?? ai.ai_summary ?? signalement.body_text;
     const titre = overrides?.title ?? ai.title ?? signalement.subject;
     const urgence = overrides?.urgent ?? ai.is_urgent ?? false;
@@ -1028,11 +1158,9 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     const ownerPhone = overrides?.ownerPhone ?? ai.owner_phone ?? "";
     const ownerEmail = overrides?.ownerEmail ?? ai.owner_email ?? "";
     const now = new Date().toISOString();
-    const localRef = generateUniqueRef();
-
     const newTicket: Ticket = {
       id: `local-${Date.now()}`,
-      reference: localRef,
+      reference: "CLR-...",
       source: "email",
       inbound_email_id: signalement.id,
       titre,
@@ -1052,6 +1180,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       quotes: [],
       messages: {},
       photos: [],
+      documents: [],
       notes: [],
       disponibilitesArtisan: [],
       disponibilitesLocataire: [],
@@ -1076,7 +1205,6 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
           agency_id: isValidAgency ? agencyId : null,
           source: "email",
           inbound_email_id: signalement.id,
-          reference: localRef,
           title: titre,
           description,
           status: mapStatusToDb("signale"),
@@ -1104,7 +1232,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
 
         // Replace local ID with real DB ID
         const realId = inserted.id;
-        const realRef = inserted.reference ?? localRef;
+        const realRef = inserted.reference ?? newTicket.reference;
         setTickets((prev) => prev.map((t) => (t.id === newTicket.id ? { ...t, id: realId, reference: realRef } : t)));
         newTicket.id = realId;
         newTicket.reference = realRef;
@@ -1169,25 +1297,182 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     });
   }, [syncTicketPatch, update]);
 
+  const fetchTicketDocuments = useCallback(async (ticketId: string) => {
+    if (!USE_SUPABASE) return;
+    const { data, error } = await supabase
+      .from("ticket_documents")
+      .select("*")
+      .eq("ticket_id", ticketId)
+      .order("uploaded_at", { ascending: false });
+    if (error || !data) return;
+
+    const docsWithUrls: TicketDocument[] = await Promise.all(
+      data.map(async (row) => {
+        const { data: urlData } = await supabase.storage
+          .from("ticket-documents")
+          .createSignedUrl(row.storage_path, 3600);
+        return {
+          id: row.id,
+          ticket_id: row.ticket_id,
+          document_type: row.document_type as TicketDocumentType,
+          file_name: row.file_name,
+          file_url: urlData?.signedUrl ?? row.file_url,
+          storage_path: row.storage_path,
+          mime_type: row.mime_type ?? undefined,
+          file_size: row.file_size ?? undefined,
+          uploaded_by: row.uploaded_by ?? undefined,
+          uploaded_at: row.uploaded_at,
+          description: row.description ?? undefined,
+        };
+      }),
+    );
+
+    setTickets((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, documents: docsWithUrls } : t)),
+    );
+  }, []);
+
+  const fetchTicketMessages = useCallback(async (ticketId: string) => {
+    if (!USE_SUPABASE) return;
+    const { data, error } = await supabase
+      .from("ticket_messages")
+      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at")
+      .eq("ticket_id", ticketId)
+      .order("sent_at", { ascending: true });
+    if (error || !data) return;
+
+    const recipientTypeToLocal: Record<string, string> = {
+      tenant: "locataire", owner: "proprietaire", syndic: "syndic", insurance: "assurance",
+    };
+    const messages = data.reduce<Record<string, TicketMessage[]>>((acc, row) => {
+      const rawType = (row.recipient_type as string | null) ?? "";
+      const key = (row.artisan_id as string | null) ?? recipientTypeToLocal[rawType] ?? (rawType || "general");
+      const msg: TicketMessage = {
+        id: row.id as string,
+        from: (() => {
+          const role = row.from_role as string | null;
+          if (role === "artisan") return "artisan";
+          if (role === "locataire") return "locataire";
+          if (role === "proprietaire") return "proprietaire";
+          if (role === "syndic") return "syndic";
+          if (role === "assurance") return "assurance";
+          return "agence";
+        })(),
+        content: (row.content as string | null) ?? "",
+        subject: (row.subject as string | null) ?? undefined,
+        template_id: (row.template_id as string | null) ?? undefined,
+        timestamp: (row.sent_at as string | null) ?? (row.created_at as string | null) ?? new Date().toISOString(),
+      };
+      acc[key] = [...(acc[key] ?? []), msg];
+      return acc;
+    }, {});
+
+    setTickets((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, messages } : t)),
+    );
+  }, []);
+
+  const uploadTicketDocument = useCallback(async (
+    ticketId: string,
+    file: File,
+    documentType: TicketDocumentType,
+    description?: string,
+  ): Promise<TicketDocument> => {
+    const agencyId = settings.agency_id;
+    const ext = file.name.split(".").pop() ?? "bin";
+    const fileId = crypto.randomUUID();
+    const storagePath = `${ticketId}/${fileId}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("ticket-documents")
+      .upload(storagePath, file, { contentType: file.type || undefined });
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = await supabase.storage
+      .from("ticket-documents")
+      .createSignedUrl(storagePath, 3600);
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("ticket_documents")
+      .insert({
+        ticket_id: ticketId,
+        agency_id: agencyId,
+        document_type: documentType,
+        file_name: file.name,
+        file_url: urlData?.signedUrl ?? "",
+        storage_path: storagePath,
+        mime_type: file.type || null,
+        file_size: file.size || null,
+        description: description || null,
+      })
+      .select()
+      .single();
+    if (insertError) throw insertError;
+
+    const newDoc: TicketDocument = {
+      id: inserted.id,
+      ticket_id: ticketId,
+      document_type: documentType,
+      file_name: file.name,
+      file_url: urlData?.signedUrl ?? "",
+      storage_path: storagePath,
+      mime_type: file.type || undefined,
+      file_size: file.size || undefined,
+      uploaded_at: inserted.uploaded_at,
+      description: description || undefined,
+    };
+
+    setTickets((prev) =>
+      prev.map((t) =>
+        t.id === ticketId ? { ...t, documents: [newDoc, ...(t.documents ?? [])] } : t,
+      ),
+    );
+
+    return newDoc;
+  }, [settings.agency_id]);
+
+  const updateTicketDocument = useCallback(async (
+    ticketId: string,
+    docId: string,
+    patch: { description?: string; document_type?: TicketDocumentType; file_name?: string },
+  ) => {
+    setTickets((prev) =>
+      prev.map((t) =>
+        t.id !== ticketId ? t : {
+          ...t,
+          documents: t.documents.map((d) =>
+            d.id === docId ? { ...d, ...patch } : d,
+          ),
+        },
+      ),
+    );
+    if (!USE_SUPABASE) return;
+    await supabase.from("ticket_documents").update(patch).eq("id", docId);
+  }, []);
+
   const value = useMemo(() => ({
     tickets, artisans, journalEntries, showJournal, activeTicketId, loading,
     setShowJournal, setActiveTicketId,
     createTicket, updateTicket, qualifyTicket, sendArtisanContact,
     receiveQuote, validateQuote, ownerRespond,
-    confirmPassage, validateFacture, closeTicket,
+    confirmPassage, advanceToFacturation, validateFacture, finalizeFacture, closeTicket,
     contactSyndic, relanceSyndic, escaladeSyndic, resolveSyndic,
     addMessage, addArtisan, updateArtisan, removeArtisan, setDisponibilites, matchAndConfirm,
     getTicket, getArtisan, validateSignalement,
     signalements, signalementsLoading, removeSignalement, refetchSignalements,
+    fetchTicketDocuments, uploadTicketDocument, updateTicketDocument,
+    fetchTicketMessages,
   }), [
     tickets, artisans, journalEntries, showJournal, activeTicketId, loading,
     signalements, signalementsLoading, removeSignalement, refetchSignalements,
     createTicket, updateTicket, qualifyTicket, sendArtisanContact,
     receiveQuote, validateQuote, ownerRespond,
-    confirmPassage, validateFacture, closeTicket,
+    confirmPassage, advanceToFacturation, validateFacture, finalizeFacture, closeTicket,
     contactSyndic, relanceSyndic, escaladeSyndic, resolveSyndic,
     addMessage, addArtisan, updateArtisan, removeArtisan, setDisponibilites, matchAndConfirm,
     getTicket, getArtisan, validateSignalement,
+    fetchTicketDocuments, uploadTicketDocument, updateTicketDocument,
+    fetchTicketMessages,
   ]);
 
   if (USE_SUPABASE && !hydrated) {

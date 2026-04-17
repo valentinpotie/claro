@@ -1,9 +1,14 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import Autocomplete from "react-google-autocomplete";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Phone, Mail } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Phone, Mail, ChevronDown } from "lucide-react";
 import { Artisan } from "@/data/types";
+import { cn } from "@/lib/utils";
 
 export const artisanSpecialtyLabels: Record<string, string> = {
   plumbing: "Plomberie",
@@ -14,6 +19,12 @@ export const artisanSpecialtyLabels: Record<string, string> = {
   humidity: "Humidité",
   pests: "Nuisibles",
   painting: "Peinture",
+  tiling: "Carrelage",
+  masonry: "Maçonnerie",
+  drywall: "Plaquisterie",
+  ironwork: "Ferronnerie",
+  swimming_pool: "Pisciniste",
+  cleaning: "Nettoyage",
   general: "Général",
   other: "Autre",
 };
@@ -33,6 +44,63 @@ function getCityFromAddress(components?: google.maps.GeocoderAddressComponent[])
 interface ArtisanFormFieldsProps {
   value: Omit<Artisan, "id">;
   onChange: (updated: Omit<Artisan, "id">) => void;
+}
+
+function SpecialtyMultiSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+
+  const toggle = (key: string) => {
+    onChange(selected.includes(key) ? selected.filter(s => s !== key) : [...selected, key]);
+  };
+
+  const label = selected.length === 0
+    ? "Choisir des spécialités…"
+    : selected.length === 1
+      ? artisanSpecialtyLabels[selected[0]] ?? selected[0]
+      : `${selected.length} spécialités`;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          type="button"
+          className={cn("w-full justify-between h-9 font-normal text-sm", selected.length === 0 && "text-muted-foreground")}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2" align="start">
+        <div className="space-y-1 max-h-56 overflow-y-auto">
+          {Object.entries(artisanSpecialtyLabels).map(([key, libelle]) => (
+            <div
+              key={key}
+              className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer hover:bg-muted/60"
+              onClick={() => toggle(key)}
+            >
+              <Checkbox
+                checked={selected.includes(key)}
+                onCheckedChange={() => toggle(key)}
+                onClick={e => e.stopPropagation()}
+                className="shrink-0"
+              />
+              <span className="text-sm">{libelle}</span>
+            </div>
+          ))}
+        </div>
+        {selected.length > 0 && (
+          <div className="border-t mt-2 pt-2 flex flex-wrap gap-1">
+            {selected.map(s => (
+              <Badge key={s} variant="secondary" className="text-[10px]">
+                {artisanSpecialtyLabels[s] ?? s}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function ArtisanFormFields({ value, onChange }: ArtisanFormFieldsProps) {
@@ -79,16 +147,11 @@ export function ArtisanFormFields({ value, onChange }: ArtisanFormFieldsProps) {
       </div>
 
       <div className="space-y-1.5">
-        <Label>Spécialité</Label>
-        <select
-          className="flex h-9 w-full rounded-[4px] border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-0 focus:border-foreground/70"
-          value={value.specialite}
-          onChange={e => onChange({ ...value, specialite: e.target.value })}
-        >
-          {Object.entries(artisanSpecialtyLabels).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
+        <Label>Spécialité(s)</Label>
+        <SpecialtyMultiSelect
+          selected={value.specialites ?? []}
+          onChange={specialites => onChange({ ...value, specialites })}
+        />
       </div>
 
       <div className="space-y-1.5">

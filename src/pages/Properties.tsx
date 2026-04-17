@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useProperties } from "@/hooks/useProperties";
+import { useTickets } from "@/contexts/TicketContext";
 import type { Property } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CsvImportDialog } from "@/components/CsvImportDialog";
+import { TicketMiniList, TicketCountBadge } from "@/components/TicketMiniList";
 import { Search, Plus, MoreHorizontal, Pencil, Trash2, Home, Upload } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,12 +24,17 @@ const csvColumns = ["address", "city", "postal_code", "unit_number", "floor", "b
 export default function Properties() {
   const { settings } = useSettings();
   const { properties, addProperty, updateProperty, removeProperty, bulkInsert } = useProperties(settings.agency_id);
+  const { tickets } = useTickets();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<Property, "id">>(emptyProperty);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const ticketsForProperty = (p: Property) =>
+    tickets.filter(t => t.bien.adresse.toLowerCase().includes(p.address.toLowerCase()));
 
   const filtered = properties.filter(p =>
     !search || [p.address, p.city, p.postal_code, p.unit_number, p.building_name].some(v => v?.toLowerCase().includes(search.toLowerCase()))
@@ -108,29 +115,50 @@ export default function Properties() {
                 <TableHead>Lot</TableHead>
                 <TableHead>Étage</TableHead>
                 <TableHead>Bâtiment</TableHead>
+                <TableHead>Tickets</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(p => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.address}</TableCell>
-                  <TableCell>{p.city}</TableCell>
-                  <TableCell>{p.postal_code}</TableCell>
-                  <TableCell>{p.unit_number}</TableCell>
-                  <TableCell>{p.floor}</TableCell>
-                  <TableCell>{p.building_name}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5 mr-2" /> Modifier</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm(p.id)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Supprimer</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map(p => {
+                const pTickets = ticketsForProperty(p);
+                const isExpanded = expandedId === p.id;
+                return (
+                  <>
+                    <TableRow
+                      key={p.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                    >
+                      <TableCell className="font-medium">{p.address}</TableCell>
+                      <TableCell>{p.city}</TableCell>
+                      <TableCell>{p.postal_code}</TableCell>
+                      <TableCell>{p.unit_number}</TableCell>
+                      <TableCell>{p.floor}</TableCell>
+                      <TableCell>{p.building_name}</TableCell>
+                      <TableCell><TicketCountBadge count={pTickets.length} /></TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5 mr-2" /> Modifier</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm(p.id)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Supprimer</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow key={`${p.id}-tickets`}>
+                        <TableCell colSpan={8} className="bg-muted/20 px-4 py-3">
+                          <TicketMiniList tickets={pTickets} emptyLabel="Aucun ticket pour ce bien" />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>

@@ -5,7 +5,6 @@ export type TicketStatus =
   | "reception_devis"
   | "validation_proprio"
   | "intervention"
-  | "planifie"
   | "confirmation_passage"
   | "facturation"
   | "cloture"
@@ -36,8 +35,10 @@ export interface Quote {
 
 export interface TicketMessage {
   id: string;
-  from: "agence" | "artisan" | "proprietaire" | "locataire" | "syndic";
+  from: "agence" | "artisan" | "proprietaire" | "locataire" | "syndic" | "assurance";
   content: string;
+  subject?: string;
+  template_id?: string;
   timestamp: string;
 }
 
@@ -48,6 +49,22 @@ export interface AIJournalEntry {
   message: string;
   type: "analysis" | "message_sent" | "notification" | "action" | "validation" | "matching" | "escalation" | "reminder" | "status_change";
   status: "pending" | "in_progress" | "done" | "failed";
+}
+
+export type TicketDocumentType = "devis" | "facture" | "photo" | "autre";
+
+export interface TicketDocument {
+  id: string;
+  ticket_id: string;
+  document_type: TicketDocumentType;
+  file_name: string;
+  file_url: string;
+  storage_path: string;
+  mime_type?: string;
+  file_size?: number;
+  uploaded_by?: string;
+  uploaded_at: string;
+  description?: string;
 }
 
 export interface Ticket {
@@ -77,6 +94,7 @@ export interface Ticket {
   owner_id?: string;
   photos: string[];
   notes: string[];
+  documents: TicketDocument[];
   disponibilitesArtisan: TimeSlot[];
   disponibilitesLocataire: TimeSlot[];
   validationStatus?: "en_attente" | "approuve" | "refuse";
@@ -93,7 +111,7 @@ export interface Ticket {
 export interface Artisan {
   id: string;
   nom: string;
-  specialite: string;
+  specialites: string[];
   ville: string;
   address?: string;
   note: number;
@@ -187,7 +205,7 @@ export const SEUIL_DELEGATION = 500;
 export interface EmailTemplate {
   id: string;
   name: string;
-  target: "artisan" | "locataire" | "proprietaire";
+  target: "artisan" | "locataire" | "proprietaire" | "syndic";
   useCase: string;
   subject: string;
   body: string;
@@ -200,7 +218,9 @@ export interface AgencySettings {
   email_inbound: string;
   delegation_threshold: number;
   always_ask_owner: boolean;
-  escalation_delay_days: number;
+  escalation_delay_owner_days: number;
+  escalation_delay_artisan_days: number;
+  escalation_delay_tenant_days: number;
   escalation_reminders_count: number;
   onboarding_completed: boolean;
   enabled_priorities: TicketPriority[];
@@ -216,7 +236,6 @@ export const statusLabels: Record<TicketStatus, string> = {
   reception_devis: "Devis reçu",
   validation_proprio: "Accord propriétaire",
   intervention: "Intervention",
-  planifie: "Planifié",
   confirmation_passage: "Confirmation passage",
   facturation: "Facturation",
   cloture: "Clôturé",
@@ -233,7 +252,6 @@ export const statusColors: Record<TicketStatus, string> = {
   reception_devis: "bg-primary/10 text-primary",
   validation_proprio: "bg-warning/15 text-warning",
   intervention: "bg-accent/15 text-accent-foreground",
-  planifie: "bg-primary/10 text-primary",
   confirmation_passage: "bg-primary/10 text-primary",
   facturation: "bg-muted text-muted-foreground",
   cloture: "bg-success/15 text-success",
@@ -281,7 +299,6 @@ export const workflowSteps: { key: TicketStatus; label: string }[] = [
   { key: "reception_devis", label: "Devis" },
   { key: "validation_proprio", label: "Accord propriétaire" },
   { key: "intervention", label: "Intervention" },
-  { key: "planifie", label: "Planifié" },
   { key: "confirmation_passage", label: "Confirmation" },
   { key: "facturation", label: "Facturation" },
   { key: "cloture", label: "Clôture" },

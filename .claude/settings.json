@@ -6,7 +6,13 @@
       "Bash(git -C /Users/valentinpotie/Documents/GitHub/claro/.claude/worktrees/infallible-noyce log --oneline -3)",
       "Bash(git pull:*)",
       "Bash(git stash:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(sed 's/[`'\\\\''\"]//')",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(grep -r \"VITE_SUPABASE_URL\\\\|supabase.co\" /Users/valentinpotie/Documents/GitHub/claro/.env*)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(grep -E \"\\\\.\\(sql|ts|js\\)$\")"
     ]
   }
 }

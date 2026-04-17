@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
-import { Artisan, categoryLabels, statusLabels, statusColors } from "@/data/types";
+import { Artisan, Ticket, categoryLabels, statusLabels, statusColors } from "@/data/types";
+import { ArtisanContactModal } from "@/components/ArtisanContactModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Phone, Mail, Send, Wrench, Search, Plus, Trash2, Building2, Briefcase } from "lucide-react";
-import { ArtisanFormFields, artisanSpecialtyLabels, defaultArtisanSpecialty } from "@/components/ArtisanFormFields";
-
-const normalizeSpecialty = (value: string) => {
-  return Object.prototype.hasOwnProperty.call(artisanSpecialtyLabels, value) ? value : defaultArtisanSpecialty;
-};
+import { ArtisanFormFields, artisanSpecialtyLabels } from "@/components/ArtisanFormFields";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export default function Artisans() {
   const { tickets, artisans, addArtisan, updateArtisan, removeArtisan, sendArtisanContact } = useTickets();
@@ -22,18 +20,20 @@ export default function Artisans() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newArtisan, setNewArtisan] = useState<Omit<Artisan, "id">>({
-    nom: "", specialite: defaultArtisanSpecialty, ville: "", address: "", telephone: "", email: "",
+    nom: "", specialites: [], ville: "", address: "", telephone: "", email: "",
     note: 5, interventions: 0, delaiMoyen: "48h",
   });
   const [editArtisan, setEditArtisan] = useState<Omit<Artisan, "id"> | null>(null);
+  const [contactPending, setContactPending] = useState<{ artisan: Artisan; ticket: Ticket } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const ticketsArtisan = tickets.filter(t => t.status === "contact_artisan" || t.status === "reception_devis");
-  const filteredArtisans = artisans.filter(a => !search || a.nom.toLowerCase().includes(search.toLowerCase()) || a.specialite.toLowerCase().includes(search.toLowerCase()) || (artisanSpecialtyLabels[a.specialite] ?? a.specialite).toLowerCase().includes(search.toLowerCase()));
+  const filteredArtisans = artisans.filter(a => !search || a.nom.toLowerCase().includes(search.toLowerCase()) || a.specialites.some(s => (artisanSpecialtyLabels[s] ?? s).toLowerCase().includes(search.toLowerCase())));
 
   const handleAddArtisan = () => {
     if (!newArtisan.nom.trim()) return;
     addArtisan(newArtisan);
-    setNewArtisan({ nom: "", specialite: defaultArtisanSpecialty, ville: "", address: "", telephone: "", email: "", note: 5, interventions: 0, delaiMoyen: "48h" });
+    setNewArtisan({ nom: "", specialites: [], ville: "", address: "", telephone: "", email: "", note: 5, interventions: 0, delaiMoyen: "48h" });
     setShowForm(false);
   };
 
@@ -41,7 +41,7 @@ export default function Artisans() {
     setEditingId(artisan.id);
     setEditArtisan({
       nom: artisan.nom,
-      specialite: normalizeSpecialty(artisan.specialite),
+      specialites: artisan.specialites ?? [],
       ville: artisan.ville,
       address: artisan.address ?? "",
       note: artisan.note,
@@ -64,6 +64,7 @@ export default function Artisans() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div><h1 className="text-xl font-bold">Artisans</h1><p className="text-sm text-muted-foreground">Gérez votre annuaire d'artisans et les tickets en cours</p></div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -120,17 +121,17 @@ export default function Artisans() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="font-medium text-sm">{a.nom}</p>
-                          <p className="text-xs text-muted-foreground">{artisanSpecialtyLabels[a.specialite] ?? a.specialite} · {a.ville}</p>
+                          <p className="text-xs text-muted-foreground">{a.specialites.map(s => artisanSpecialtyLabels[s] ?? s).join(", ") || "—"} · {a.ville}</p>
                           {a.address && <p className="text-xs text-muted-foreground mt-0.5">{a.address}</p>}
                         </div>
                         <div className="flex items-center gap-2">
                           <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => openEdit(a)}>Modifier</Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeArtisan(a.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteConfirm(a.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
                       <div className="flex gap-3 text-xs text-muted-foreground mb-2"><span>{a.interventions} interventions</span><span>Délai: {a.delaiMoyen}</span></div>
                       <div className="flex gap-2 text-xs text-muted-foreground mb-2"><span className="flex items-center gap-1"><Phone className="h-3 w-3" />{a.telephone}</span><span className="flex items-center gap-1"><Mail className="h-3 w-3" />{a.email}</span></div>
-                      {ticketsArtisan.length > 0 && <div className="flex gap-1 flex-wrap mt-2">{ticketsArtisan.map(t => <Button key={t.id} size="sm" variant="outline" className="text-[10px] h-6" onClick={() => sendArtisanContact(t.id, a.id)}><Send className="h-2.5 w-2.5 mr-1" />{t.reference}</Button>)}</div>}
+                      {ticketsArtisan.length > 0 && <div className="flex gap-1 flex-wrap mt-2">{ticketsArtisan.map(t => <Button key={t.id} size="sm" variant="outline" className="text-[10px] h-6" onClick={() => setContactPending({ artisan: a, ticket: t })}><Send className="h-2.5 w-2.5 mr-1" />{t.reference}</Button>)}</div>}
                     </>
                   )}
                 </CardContent></Card>
@@ -152,5 +153,31 @@ export default function Artisans() {
         </TabsContent>
       </Tabs>
     </div>
+
+    <Dialog open={!!deleteConfirm} onOpenChange={open => { if (!open) setDeleteConfirm(null); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Confirmer la suppression</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">Êtes-vous sûr de vouloir supprimer cet artisan ? Cette action est irréversible.</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Annuler</Button>
+          <Button variant="destructive" onClick={() => { if (deleteConfirm) { removeArtisan(deleteConfirm); setDeleteConfirm(null); } }}>Supprimer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {contactPending && (
+      <ArtisanContactModal
+        open
+        artisan={contactPending.artisan}
+        ticket={contactPending.ticket}
+        onClose={() => setContactPending(null)}
+        onConfirm={(subject, content) => {
+          sendArtisanContact(contactPending.ticket.id, contactPending.artisan.id, content, subject);
+          setContactPending(null);
+          navigate(`/tickets/${contactPending.ticket.id}`);
+        }}
+      />
+    )}
+    </>
   );
 }

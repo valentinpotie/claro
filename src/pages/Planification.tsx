@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function Planification() {
   const { tickets, setDisponibilites, matchAndConfirm, getArtisan } = useTickets();
   const navigate = useNavigate();
-  const filtered = tickets.filter(t => t.status === "planifie");
+  const filtered = tickets.filter(t => t.status === "confirmation_passage" && !t.passageConfirme);
   const [activeTicket, setActiveTicket] = useState<string | null>(null);
   return (
     <div className="space-y-6">

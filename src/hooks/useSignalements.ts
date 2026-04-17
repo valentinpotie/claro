@@ -63,15 +63,24 @@ export function useSignalements(agencyId?: string) {
           filter: `agency_id=eq.${agencyId}`,
         },
         (payload) => {
-          const row = payload.new as InboundSignalement | undefined;
-          if (!row) return;
-          // Only add if it's a pending signalement without a ticket
-          if (row.validation_status === "pending" && !row.ticket_id) {
-            setSignalements((prev) => {
-              if (prev.some((s) => s.id === row.id)) return prev;
-              return [row, ...prev];
-            });
-          }
+          const id = (payload.new as { id?: string } | undefined)?.id;
+          if (!id) return;
+          // Re-fetch the row so JSONB fields (ai_suggestion) are properly parsed.
+          void (async () => {
+            const { data } = await supabase
+              .from("inbound_emails")
+              .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion")
+              .eq("id", id)
+              .single();
+            if (!data) return;
+            const row = data as InboundSignalement;
+            if (row.validation_status === "pending" && !row.ticket_id) {
+              setSignalements((prev) => {
+                if (prev.some((s) => s.id === row.id)) return prev;
+                return [row, ...prev];
+              });
+            }
+          })();
         },
       )
       .on(
@@ -83,20 +92,32 @@ export function useSignalements(agencyId?: string) {
           filter: `agency_id=eq.${agencyId}`,
         },
         (payload) => {
-          const row = payload.new as InboundSignalement | undefined;
-          if (!row) return;
-
-          if (row.validation_status === "pending" && !row.ticket_id) {
-            // Update or insert
-            setSignalements((prev) => {
-              const exists = prev.some((s) => s.id === row.id);
-              if (exists) return prev.map((s) => (s.id === row.id ? row : s));
-              return [row, ...prev];
-            });
-          } else {
-            // No longer pending — remove from list
-            setSignalements((prev) => prev.filter((s) => s.id !== row.id));
-          }
+          const id = (payload.new as { id?: string } | undefined)?.id;
+          if (!id) return;
+          // Re-fetch the row from DB instead of using payload.new directly:
+          // JSONB columns (ai_suggestion) may be missing or mis-serialised in the
+          // realtime payload when the update is made by a backend service.
+          void (async () => {
+            const { data } = await supabase
+              .from("inbound_emails")
+              .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion")
+              .eq("id", id)
+              .single();
+            if (!data) {
+              setSignalements((prev) => prev.filter((s) => s.id !== id));
+              return;
+            }
+            const row = data as InboundSignalement;
+            if (row.validation_status === "pending" && !row.ticket_id) {
+              setSignalements((prev) => {
+                const exists = prev.some((s) => s.id === row.id);
+                if (exists) return prev.map((s) => (s.id === row.id ? row : s));
+                return [row, ...prev];
+              });
+            } else {
+              setSignalements((prev) => prev.filter((s) => s.id !== row.id));
+            }
+          })();
         },
       )
       .subscribe();
@@ -108,6 +129,17 @@ export function useSignalements(agencyId?: string) {
 
   const removeSignalement = useCallback((id: string) => {
     setSignalements((prev) => prev.filter((s) => s.id !== id));
+    if (USE_SUPABASE && isUuid(id)) {
+      // UPDATE rather than DELETE: avoids potential RLS gaps on DELETE and lets the
+      // realtime UPDATE handler confirm the removal on all connected clients.
+      void supabase
+        .from("inbound_emails")
+        .update({ validation_status: "rejected" })
+        .eq("id", id)
+        .then(({ error }) => {
+          if (error) console.error("Failed to dismiss signalement", error);
+        });
+    }
   }, []);
 
   return { signalements, loading, refetch: fetchPending, removeSignalement };

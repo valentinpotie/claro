@@ -67,8 +67,11 @@ type DbMessage = {
   id: string;
   ticket_id: string;
   artisan_id: string | null;
+  recipient_type: string | null;
   from_role: string | null;
   content: string | null;
+  subject: string | null;
+  template_id: string | null;
   sent_at: string | null;
   created_at: string | null;
 };
@@ -136,6 +139,9 @@ type DbAgencySettings = {
   delegation_threshold: number | null;
   always_ask_owner: boolean | null;
   escalation_delay_days: number | null;
+  escalation_delay_owner_days: number | null;
+  escalation_delay_artisan_days: number | null;
+  escalation_delay_tenant_days: number | null;
   escalation_reminders_count: number | null;
   accountant_email: string | null;
   enabled_priorities: unknown;
@@ -158,7 +164,7 @@ type DbArtisan = {
   id: string;
   agency_id: string;
   name: string | null;
-  specialty: string | null;
+  specialties: string[] | null;
   city: string | null;
   address: string | null;
   rating: number | string | null;
@@ -181,8 +187,6 @@ const statusFromDb: Record<string, TicketStatus> = {
   validation_proprio: "validation_proprio",
   owner_validation: "validation_proprio",
   intervention: "intervention",
-  planifie: "planifie",
-  planned: "planifie",
   confirmation_passage: "confirmation_passage",
   passage_confirmation: "confirmation_passage",
   passage_confirmed: "confirmation_passage",
@@ -207,7 +211,6 @@ const statusToDb: Record<TicketStatus, string> = {
   reception_devis: "quote_received",
   validation_proprio: "owner_validation",
   intervention: "intervention",
-  planifie: "planned",
   confirmation_passage: "passage_confirmed",
   facturation: "billing",
   cloture: "closed",
@@ -326,12 +329,14 @@ const templateTargetFromDb: Record<string, EmailTemplate["target"]> = {
   locataire: "locataire",
   owner: "proprietaire",
   proprietaire: "proprietaire",
+  syndic: "syndic",
 };
 
 const templateTargetToDb: Record<EmailTemplate["target"], string> = {
   artisan: "artisan",
   locataire: "tenant",
   proprietaire: "owner",
+  syndic: "syndic",
 };
 
 function toTicketStatus(value: string | null | undefined): TicketStatus {
@@ -383,7 +388,7 @@ export function mapArtisanRow(row: DbArtisan): Artisan {
   return {
     id: row.id,
     nom: row.name ?? "Artisan",
-    specialite: row.specialty ?? "other",
+    specialites: row.specialties ?? [],
     ville: row.city ?? "",
     address: row.address ?? "",
     note: Number(row.rating ?? 0),
@@ -407,26 +412,32 @@ export function mapAgencySettings(
     email_inbound: agency?.email_inbound ?? fallback.email_inbound,
     delegation_threshold: settingsRow?.delegation_threshold ?? fallback.delegation_threshold,
     always_ask_owner: settingsRow?.always_ask_owner ?? fallback.always_ask_owner,
-    escalation_delay_days: settingsRow?.escalation_delay_days ?? fallback.escalation_delay_days,
+    escalation_delay_owner_days: settingsRow?.escalation_delay_owner_days ?? settingsRow?.escalation_delay_days ?? fallback.escalation_delay_owner_days,
+    escalation_delay_artisan_days: settingsRow?.escalation_delay_artisan_days ?? settingsRow?.escalation_delay_days ?? fallback.escalation_delay_artisan_days,
+    escalation_delay_tenant_days: settingsRow?.escalation_delay_tenant_days ?? settingsRow?.escalation_delay_days ?? fallback.escalation_delay_tenant_days,
     escalation_reminders_count:
       settingsRow?.escalation_reminders_count ?? fallback.escalation_reminders_count,
     onboarding_completed: settingsRow?.onboarding_completed ?? fallback.onboarding_completed,
     enabled_priorities: asTicketPriorities(settingsRow?.enabled_priorities ?? fallback.enabled_priorities),
     tour_completed: settingsRow?.tour_completed ?? fallback.tour_completed,
     accountant_email: settingsRow?.accountant_email ?? fallback.accountant_email,
-    email_templates:
-      templates.length > 0
-        ? templates
-            .filter((template) => template.is_active !== false)
-            .map((template) => ({
-              id: template.id,
-              name: template.name ?? "Template",
-              target: templateTargetFromDb[template.target ?? ""] ?? "artisan",
-              useCase: template.use_case ?? "",
-              subject: template.subject ?? "",
-              body: template.body ?? "",
-            }))
-        : fallback.email_templates,
+    email_templates: (() => {
+      const dbTemplates = templates
+        .filter((template) => template.is_active !== false)
+        .map((template) => ({
+          id: template.id,
+          name: template.name ?? "Template",
+          target: templateTargetFromDb[template.target ?? ""] ?? ("artisan" as EmailTemplate["target"]),
+          useCase: template.use_case ?? "",
+          subject: template.subject ?? "",
+          body: template.body ?? "",
+        }));
+      if (dbTemplates.length === 0) return fallback.email_templates;
+      // Merge: keep all DB templates, then append any default template whose useCase is not yet present
+      const existingUseCases = new Set(dbTemplates.map(t => t.useCase));
+      const missingDefaults = fallback.email_templates.filter(t => !existingUseCases.has(t.useCase));
+      return [...dbTemplates, ...missingDefaults];
+    })(),
   };
 }
 
@@ -499,7 +510,7 @@ export async function fetchAgencyBundle(agencyId: string | null | undefined) {
 export async function fetchArtisansByAgency(agencyId: string | null | undefined) {
   let query = supabase
     .from("artisans")
-    .select("id, agency_id, name, specialty, city, address, rating, interventions_count, average_delay, phone, email")
+    .select("id, agency_id, name, specialties, city, address, rating, interventions_count, average_delay, phone, email")
     .order("created_at", { ascending: true });
 
   if (agencyId) {
@@ -555,14 +566,17 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
     return { tickets: [] as Ticket[], journalEntries: [] as AIJournalEntry[] };
   }
 
-  const [quoteRes, messageRes, photoRes, noteRes, mailRes, followupRes, invoiceRes, journalEntries] = await Promise.all([
+  const tenantIds = [...new Set(tickets.map(t => t.tenant_id).filter(Boolean))] as string[];
+  const ownerIds  = [...new Set(tickets.map(t => t.owner_id).filter(Boolean))]  as string[];
+
+  const [quoteRes, messageRes, photoRes, noteRes, mailRes, followupRes, invoiceRes, journalEntries, tenantRes, ownerRes] = await Promise.all([
     supabase
       .from("ticket_quotes")
       .select("id, ticket_id, artisan_id, artisan_name_snapshot, amount, delay_text, description, is_selected")
       .in("ticket_id", ticketIds),
     supabase
       .from("ticket_messages")
-      .select("id, ticket_id, artisan_id, from_role, content, sent_at, created_at")
+      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at")
       .in("ticket_id", ticketIds)
       .order("sent_at", { ascending: true }),
     supabase
@@ -589,6 +603,12 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       .select("id, ticket_id, artisan_id, amount, is_paid, invoice_ref, invoice_date, description")
       .in("ticket_id", ticketIds),
     fetchTicketJournalEntries(ticketIds),
+    tenantIds.length > 0
+      ? supabase.from("tenants").select("id, first_name, last_name, phone, email").in("id", tenantIds)
+      : Promise.resolve({ data: [], error: null }),
+    ownerIds.length > 0
+      ? supabase.from("owners").select("id, first_name, last_name, phone, email").in("id", ownerIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (quoteRes.error) throw quoteRes.error;
@@ -598,6 +618,11 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
   if (mailRes.error) throw mailRes.error;
   if (followupRes.error) throw followupRes.error;
   if (invoiceRes.error) throw invoiceRes.error;
+
+  type TenantRow = { id: string; first_name: string | null; last_name: string | null; phone: string | null; email: string | null };
+  type OwnerRow  = { id: string; first_name: string | null; last_name: string | null; phone: string | null; email: string | null };
+  const tenantsById = Object.fromEntries(((tenantRes.data ?? []) as TenantRow[]).map(r => [r.id, r]));
+  const ownersById  = Object.fromEntries(((ownerRes.data  ?? []) as OwnerRow[]) .map(r => [r.id, r]));
 
   const quotesByTicket = groupByTicketId((quoteRes.data as DbQuote[] | null) ?? []);
   const messagesByTicket = groupByTicketId((messageRes.data as DbMessage[] | null) ?? []);
@@ -618,15 +643,21 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       selected: quote.is_selected ?? false,
     }));
 
+    const recipientTypeToLocal: Record<string, string> = {
+      tenant: "locataire", owner: "proprietaire", syndic: "syndic", insurance: "assurance",
+    };
+
     const messages = (messagesByTicket[ticket.id] ?? []).reduce<Record<string, TicketMessage[]>>((acc, message) => {
-      const artisanId = message.artisan_id ?? "general";
+      const key = message.artisan_id ?? recipientTypeToLocal[message.recipient_type ?? ""] ?? message.recipient_type ?? "general";
       const nextMessage: TicketMessage = {
         id: message.id,
         from: toTicketMessageFromRole(message.from_role),
         content: message.content ?? "",
+        subject: message.subject ?? undefined,
+        template_id: message.template_id ?? undefined,
         timestamp: message.sent_at ?? message.created_at ?? new Date().toISOString(),
       };
-      acc[artisanId] = acc[artisanId] ? [...acc[artisanId], nextMessage] : [nextMessage];
+      acc[key] = acc[key] ? [...acc[key], nextMessage] : [nextMessage];
       return acc;
     }, {});
 
@@ -646,18 +677,24 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       dateCreation: (ticket.reported_at ?? ticket.created_at ?? new Date().toISOString()).slice(0, 10),
       dateMaj: (ticket.updated_at ?? ticket.created_at ?? new Date().toISOString()).slice(0, 10),
       urgence: ticket.is_urgent ?? false,
-      locataire: {
-        nom: ticket.tenant_name ?? "",
-        telephone: ticket.tenant_phone ?? "",
-        email: ticket.tenant_email ?? "",
-      },
-      bien: {
-        adresse: ticket.property_address ?? "",
-        lot: ticket.property_unit ?? "",
-        proprietaire: ticket.property_owner_name ?? "",
-        telephoneProprio: ticket.property_owner_phone ?? "",
-        emailProprio: ticket.property_owner_email ?? "",
-      },
+      locataire: (() => {
+        const t = ticket.tenant_id ? tenantsById[ticket.tenant_id] : null;
+        return {
+          nom:       t ? `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || (ticket.tenant_name ?? "") : (ticket.tenant_name ?? ""),
+          telephone: t?.phone  ?? ticket.tenant_phone ?? "",
+          email:     t?.email  ?? ticket.tenant_email ?? "",
+        };
+      })(),
+      bien: (() => {
+        const o = ticket.owner_id ? ownersById[ticket.owner_id] : null;
+        return {
+          adresse:       ticket.property_address ?? "",
+          lot:           ticket.property_unit ?? "",
+          proprietaire:  o ? `${o.first_name ?? ""} ${o.last_name ?? ""}`.trim() || (ticket.property_owner_name ?? "") : (ticket.property_owner_name ?? ""),
+          telephoneProprio: o?.phone ?? ticket.property_owner_phone ?? "",
+          emailProprio:     o?.email ?? ticket.property_owner_email ?? "",
+        };
+      })(),
       responsabilite: toResponsabilite(ticket.responsibility),
       quotes,
       selectedQuoteId: ticket.selected_quote_id ?? quotes.find((quote) => quote.selected)?.id,
@@ -704,6 +741,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       syndicEscalade: toTicketStatus(ticket.status) === "escalade_syndic",
       disponibilitesArtisan: [],
       disponibilitesLocataire: [],
+      documents: [],
     } satisfies Ticket;
   });
 
@@ -768,6 +806,7 @@ export function mapDbTicketToTicket(dbTicket: DbTicket): Ticket {
     messages: {},
     photos: [],
     notes: [],
+    documents: [],
     disponibilitesArtisan: [],
     disponibilitesLocataire: [],
     validationStatus: (dbTicket.validation_status as Ticket["validationStatus"]) || "en_attente",

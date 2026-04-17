@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home, Inbox, Copy, CheckCircle2 } from "lucide-react";
+import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home, Inbox, Copy, CheckCircle2, Building2 } from "lucide-react";
+import { EscalationDelaySettings } from "@/components/EscalationDelaySettings";
 
 const templateVariables = ["{{nom_agence}}", "{{adresse}}", "{{lot}}", "{{categorie}}", "{{description}}", "{{nom_artisan}}", "{{telephone_artisan}}", "{{nom_locataire}}", "{{telephone_locataire}}", "{{nom_proprietaire}}", "{{montant}}", "{{date_intervention}}"];
 
@@ -30,10 +31,10 @@ export default function Settings() {
     updateSettings({ email_templates: updated });
   };
 
-  const renderTemplates = (target: "artisan" | "locataire" | "proprietaire") => {
+  const renderTemplates = (target: "artisan" | "locataire" | "proprietaire" | "syndic") => {
     const templates = settings.email_templates.filter(t => t.target === target);
     return (
-      <div className="space-y-3">
+      <div className="max-h-[480px] overflow-y-auto space-y-3 pr-1">
         {templates.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Aucun template pour cette catégorie</p>}
         {templates.map(t => (
           <div key={t.id} className="rounded-lg border p-3 space-y-2">
@@ -92,10 +93,11 @@ export default function Settings() {
                   type="number" min={0} step={50}
                   value={settings.delegation_threshold}
                   onChange={e => updateSettings({ delegation_threshold: Number(e.target.value) })}
-                  className="pl-8"
+                  className="pl-8 pr-16"
                   placeholder="Seuil de délégation (€)"
                 />
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">€</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground/60 pointer-events-none">TTC</span>
               </div>
             )}
             <div className="flex items-center justify-between rounded-[4px] border border-input p-3">
@@ -113,20 +115,8 @@ export default function Settings() {
           <div className="space-y-4">
             <div>
               <p className="text-sm font-semibold">Relances automatiques</p>
-              <p className="text-xs text-muted-foreground">Configurez les relances envoyées automatiquement en l'absence de réponse du propriétaire ou de l'artisan.</p>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Délai avant relance</span>
-                <span className="text-sm font-semibold">{settings.escalation_delay_days} jour{settings.escalation_delay_days > 1 ? "s" : ""}</span>
-              </div>
-              <Slider
-                value={[settings.escalation_delay_days]}
-                onValueChange={([v]) => updateSettings({ escalation_delay_days: v })}
-                min={1} max={7} step={1}
-              />
-              <p className="text-xs text-muted-foreground mt-1">Nombre de jours sans réponse avant relance automatique</p>
-            </div>
+            <EscalationDelaySettings settings={settings} onChange={updateSettings} />
           </div>
         </CardContent>
       </Card>
@@ -143,10 +133,12 @@ export default function Settings() {
               <TabsTrigger value="artisan" className="text-xs gap-1"><Wrench className="h-3 w-3" /> Artisans</TabsTrigger>
               <TabsTrigger value="locataire" className="text-xs gap-1"><User className="h-3 w-3" /> Locataires</TabsTrigger>
               <TabsTrigger value="proprietaire" className="text-xs gap-1"><Home className="h-3 w-3" /> Propriétaires</TabsTrigger>
+              <TabsTrigger value="syndic" className="text-xs gap-1"><Building2 className="h-3 w-3" /> Syndic</TabsTrigger>
             </TabsList>
             <TabsContent value="artisan">{renderTemplates("artisan")}</TabsContent>
             <TabsContent value="locataire">{renderTemplates("locataire")}</TabsContent>
             <TabsContent value="proprietaire">{renderTemplates("proprietaire")}</TabsContent>
+            <TabsContent value="syndic">{renderTemplates("syndic")}</TabsContent>
           </Tabs>
         </CardContent>
       </Card>

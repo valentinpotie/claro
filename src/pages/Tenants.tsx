@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useTenants } from "@/hooks/useTenants";
+import { useTickets } from "@/contexts/TicketContext";
 import type { Tenant } from "@/data/types";
+import { TicketMiniList, TicketCountBadge } from "@/components/TicketMiniList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +25,17 @@ const csvColumns = ["first_name", "last_name", "email", "phone", "lease_start", 
 export default function Tenants() {
   const { settings } = useSettings();
   const { tenants, addTenant, updateTenant, removeTenant, bulkInsert } = useTenants(settings.agency_id);
+  const { tickets } = useTickets();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<Tenant, "id">>(emptyTenant);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const ticketsForTenant = (t: Tenant) =>
+    tickets.filter(tk => t.email && tk.locataire.email === t.email);
 
   const filtered = tenants.filter(t =>
     !search || [t.first_name, t.last_name, t.email, t.phone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
@@ -109,29 +116,46 @@ export default function Tenants() {
                 <TableHead>Bail début</TableHead>
                 <TableHead>Bail fin</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Tickets</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(t => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium">{[t.first_name, t.last_name].filter(Boolean).join(" ")}</TableCell>
-                  <TableCell>{t.email}</TableCell>
-                  <TableCell>{t.phone}</TableCell>
-                  <TableCell>{t.lease_start}</TableCell>
-                  <TableCell>{t.lease_end ?? "—"}</TableCell>
-                  <TableCell><Badge variant={t.is_active !== false ? "default" : "secondary"} className="text-[10px]">{t.is_active !== false ? "Actif" : "Inactif"}</Badge></TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" /> Modifier</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Supprimer</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map(t => {
+                const tTickets = ticketsForTenant(t);
+                const isExpanded = expandedId === t.id;
+                return (
+                  <>
+                    <TableRow key={t.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setExpandedId(isExpanded ? null : t.id)}>
+                      <TableCell className="font-medium">{[t.first_name, t.last_name].filter(Boolean).join(" ")}</TableCell>
+                      <TableCell>{t.email}</TableCell>
+                      <TableCell>{t.phone}</TableCell>
+                      <TableCell>{t.lease_start}</TableCell>
+                      <TableCell>{t.lease_end ?? "—"}</TableCell>
+                      <TableCell><Badge variant={t.is_active !== false ? "default" : "secondary"} className="text-[10px]">{t.is_active !== false ? "Actif" : "Inactif"}</Badge></TableCell>
+                      <TableCell><TicketCountBadge count={tTickets.length} /></TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" /> Modifier</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirm(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Supprimer</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow key={`${t.id}-tickets`}>
+                        <TableCell colSpan={8} className="bg-muted/20 px-4 py-3">
+                          <TicketMiniList tickets={tTickets} emptyLabel="Aucun ticket pour ce locataire" />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>
