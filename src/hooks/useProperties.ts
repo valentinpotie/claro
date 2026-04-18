@@ -13,6 +13,13 @@ function isUuid(value?: string | null): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+// Postgres rejects "" for DATE / constrained columns → ghost rows. Convert "" → null before writes.
+function sanitizeForDb<T extends Record<string, unknown>>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) out[k] = v === "" ? null : v;
+  return out as T;
+}
+
 export function useProperties(agencyId?: string | null) {
   const [properties, setProperties] = useState<Property[]>(USE_SUPABASE ? [] : mockProperties);
   const [loading, setLoading] = useState(USE_SUPABASE);
@@ -36,17 +43,28 @@ export function useProperties(agencyId?: string | null) {
     const item: Property = { id, ...data };
     setProperties(prev => [item, ...prev]);
     if (USE_SUPABASE && isUuid(agencyId)) {
-      try { await supabase.from("properties").insert({ ...item, agency_id: agencyId }); } catch (e) { console.error("Failed to insert property", e); }
+      const { error } = await supabase.from("properties").insert(sanitizeForDb({ ...item, agency_id: agencyId }));
+      if (error) {
+        console.error("Failed to insert property", error);
+        setProperties(prev => prev.filter(p => p.id !== id));
+        throw error;
+      }
     }
     return item;
   }, [agencyId]);
 
   const updateProperty = useCallback(async (id: string, data: Partial<Omit<Property, "id">>) => {
+    const prevSnapshot = properties;
     setProperties(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
     if (USE_SUPABASE) {
-      try { await supabase.from("properties").update({ ...data, updated_at: new Date().toISOString() }).eq("id", id); } catch (e) { console.error("Failed to update property", e); }
+      const { error } = await supabase.from("properties").update(sanitizeForDb({ ...data, updated_at: new Date().toISOString() })).eq("id", id);
+      if (error) {
+        console.error("Failed to update property", error);
+        setProperties(prevSnapshot);
+        throw error;
+      }
     }
-  }, []);
+  }, [properties]);
 
   const removeProperty = useCallback(async (id: string) => {
     setProperties(prev => prev.filter(p => p.id !== id));
@@ -59,7 +77,14 @@ export function useProperties(agencyId?: string | null) {
     const items = rows.map(r => ({ id: USE_SUPABASE ? crypto.randomUUID() : `prop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...r }));
     setProperties(prev => [...items, ...prev]);
     if (USE_SUPABASE && isUuid(agencyId)) {
-      try { await supabase.from("properties").insert(items.map(i => ({ ...i, agency_id: agencyId }))); } catch (e) { console.error("Failed to bulk insert properties", e); }
+      const payload = items.map(i => sanitizeForDb({ ...i, agency_id: agencyId }));
+      const { error } = await supabase.from("properties").insert(payload);
+      if (error) {
+        console.error("Failed to bulk insert properties", error);
+        const rejectedIds = new Set(items.map(i => i.id));
+        setProperties(prev => prev.filter(p => !rejectedIds.has(p.id)));
+        throw error;
+      }
     }
     return items.length;
   }, [agencyId]);

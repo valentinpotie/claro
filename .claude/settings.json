@@ -12,7 +12,31 @@
       "mcp__claude_ai_Supabase__apply_migration",
       "Bash(grep -r \"VITE_SUPABASE_URL\\\\|supabase.co\" /Users/valentinpotie/Documents/GitHub/claro/.env*)",
       "mcp__claude_ai_Supabase__execute_sql",
-      "Bash(grep -E \"\\\\.\\(sql|ts|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(sql|ts|js\\)$\")",
+      "mcp__claude_ai_Supabase__list_edge_functions",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__get_edge_function",
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "Bash(node -e \"const fs = require\\('fs'\\); const idx = JSON.stringify\\(fs.readFileSync\\('index.ts', 'utf8'\\)\\); const log = JSON.stringify\\(fs.readFileSync\\('logger.ts', 'utf8'\\)\\); const deno = JSON.stringify\\(fs.readFileSync\\('deno.json', 'utf8'\\)\\); process.stdout.write\\(JSON.stringify\\({idx, log, deno}\\)\\);\")",
+      "Read(//tmp/**)",
+      "Bash(wait)",
+      "Read(//private/tmp/**)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const payload={idx:fs.readFileSync\\('index.ts','utf8'\\),log:fs.readFileSync\\('logger.ts','utf8'\\),deno:fs.readFileSync\\('deno.json','utf8'\\)};fs.writeFileSync\\('/tmp/cr.json',JSON.stringify\\(payload\\)\\);\")",
+      "Bash(python3 -c \"import json; print\\(json.dumps\\({'idx': open\\('index.ts'\\).read\\(\\), 'log': open\\('logger.ts'\\).read\\(\\), 'deno': open\\('deno.json'\\).read\\(\\)}\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/tmp/cr.json'\\)\\); print\\(len\\(d['idx']\\), len\\(d['log']\\), len\\(d['deno']\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/tmp/cr.json'\\)\\); open\\('/tmp/idx_escaped.txt','w'\\).write\\(json.dumps\\(d['idx']\\)\\)\")",
+      "Bash(supabase --version)",
+      "Bash(supabase functions *)",
+      "Bash(npm run *)",
+      "Bash(kill 64330 64347 64328)",
+      "Bash(awk '{print $2}')",
+      "Bash(xargs kill *)",
+      "WebFetch(domain:resend.com)",
+      "WebSearch",
+      "Bash(deno check *)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp"
     ]
   }
 }

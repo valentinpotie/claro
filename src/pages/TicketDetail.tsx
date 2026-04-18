@@ -10,6 +10,9 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { DiscussionBlock } from "@/components/DiscussionBlock";
 import { ArtisanContactModal } from "@/components/ArtisanContactModal";
+import { QuoteComparison } from "@/components/QuoteComparison";
+import { OwnerApprovalModal } from "@/components/OwnerApprovalModal";
+import { OwnerResponseConfirmModal } from "@/components/OwnerResponseConfirmModal";
 import {
   ArrowLeft, ArrowRight, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
   AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Building2, RefreshCw, Gavel, X, Sparkles, Plus
@@ -39,6 +42,9 @@ export default function TicketDetail() {
   const [factureForm, setFactureForm] = useState<{ montant: string; ref: string; prestation: string; date: string; file: File | null } | null>(null);
   const [uploadingFacture, setUploadingFacture] = useState(false);
   const [showProofsWarning, setShowProofsWarning] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [ownerApprovalOpen, setOwnerApprovalOpen] = useState(false);
+  const [ownerResponseConfirmOpen, setOwnerResponseConfirmOpen] = useState(false);
   const [showFactureRequired, setShowFactureRequired] = useState(false);
   const proofInputRef = useRef<HTMLInputElement>(null);
   const facturePdfInputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +156,26 @@ export default function TicketDetail() {
           <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => setTicketTourStep(1)}>
             <Sparkles className="h-3.5 w-3.5" /> Tutoriel
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
+            disabled={refreshing}
+            onClick={async () => {
+              if (refreshing) return;
+              setRefreshing(true);
+              try {
+                await Promise.all([
+                  ctx.refreshTicket(ticket.id),
+                  new Promise((r) => setTimeout(r, 400)), // min-visible spin
+                ]);
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /> Rafraîchir
+          </Button>
           <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-[hsl(var(--secondary-hover))]" onClick={() => { ctx.setActiveTicketId(ticket.id); ctx.setShowJournal(true); }}>
             <Bot className="h-4 w-4 mr-1" /> Journal Claro
           </Button>
@@ -246,8 +272,9 @@ export default function TicketDetail() {
             </Card>
           </Tabs>
 
-          {/* Signalement -> Diagnostic (auto-lancé) */}
-          {ticket.status === "signale" && (
+          {/* Signalement -> Diagnostic (démo uniquement : en prod le signalement est déjà
+              qualifié par l'IA au moment de l'email inbound — rien à montrer ici). */}
+          {ticket.status === "signale" && settings.demo_mode && (
             <Card className="border-0 shadow-sm border-l-4 border-l-primary">
               <CardContent className="p-4 flex items-center gap-3">
                 <Brain className="h-4 w-4 text-primary animate-pulse shrink-0" />
@@ -296,8 +323,9 @@ export default function TicketDetail() {
                 </CardContent>
               </Card>
 
-              {/* Simulate receiving quote */}
-              {ticket.artisanId && (
+              {/* Simulate receiving quote — demo mode only. In prod the quote arrives via the
+                  artisan's email (classify-reply extracts it) and appears in the comparison below. */}
+              {settings.demo_mode && ticket.artisanId && (
                 <Card className="border-0 shadow-sm border-l-4 border-l-primary">
                   <CardContent className="p-4">
                     <p className="text-sm mb-3">L'artisan a effectué son diagnostic sur place ?</p>
@@ -307,53 +335,142 @@ export default function TicketDetail() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Quotes already received (edge case where classify-reply didn't auto-advance
+                  the status, or an artisan responded before the transition). */}
+              {!settings.demo_mode && ticket.quotes.length > 0 && (
+                <QuoteComparison quotes={ticket.quotes} onSelect={(quoteId) => ctx.selectQuote(ticket.id, quoteId)} />
+              )}
+
+              {/* Prod: info message while waiting for quotes */}
+              {!settings.demo_mode && ticket.artisanId && ticket.quotes.length === 0 && (
+                <Card className="border-0 shadow-sm border-l-4 border-l-muted">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <p className="text-sm text-muted-foreground">En attente du devis de l'artisan par email. Il apparaîtra automatiquement ici.</p>
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
 
           {/* Réception devis */}
-          {ticket.status === "reception_devis" && selectedQuote && (() => {
-            const willAutoValidate = !needsOwnerApproval(selectedQuote.montant);
+          {ticket.status === "reception_devis" && (() => {
+            const hasMultipleQuotes = ticket.quotes.length > 1;
+            const willAutoValidate = selectedQuote ? !needsOwnerApproval(selectedQuote.montant) : false;
             return (
-              <Card className="border-0 shadow-sm border-l-4 border-l-primary">
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" /> Devis reçu</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="p-3 bg-muted rounded-lg space-y-1">
-                    <p className="font-medium text-sm">{selectedQuote.artisanNom}</p>
-                    <p className="text-xs text-muted-foreground">{selectedQuote.description}</p>
-                    <p className="text-sm font-semibold mt-1">{selectedQuote.montant} € · {selectedQuote.delai}</p>
-                    {ticket.documents.filter(d => d.document_type === "devis").map(doc => (
-                      <a
-                        key={doc.id}
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-primary hover:underline text-xs font-medium pt-1 border-t border-border/50 mt-1"
-                      >
-                        <FileText className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{doc.file_name}</span>
-                      </a>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Devis établi suite au diagnostic sur place de l'artisan.</p>
-                  {willAutoValidate ? (
-                    <Badge className="bg-success/15 text-success border-0">Validé automatiquement (sous le seuil de délégation de {settings.delegation_threshold} €)</Badge>
-                  ) : (
-                    <Badge className="bg-warning/15 text-warning border-0">
-                      {settings.always_ask_owner
-                        ? "Accord propriétaire requis (règle agence)"
-                        : `Au-dessus du seuil (${settings.delegation_threshold} €) — Accord propriétaire requis`}
-                    </Badge>
-                  )}
-                  <Button onClick={() => ctx.validateQuote(ticket.id)} className="w-full">
-                    <CheckCircle2 className="h-4 w-4 mr-2" /> {willAutoValidate ? "Valider le devis" : "Envoyer au propriétaire"}
-                  </Button>
-                </CardContent>
-              </Card>
+              <>
+                {/* Always show the comparison so the gestionnaire picks explicitly (no auto-selection
+                    on inbound quotes). Single-quote case = list of 1 with a "Choisir" button. */}
+                {ticket.quotes.length > 0 && (
+                  <QuoteComparison quotes={ticket.quotes} onSelect={(quoteId) => ctx.selectQuote(ticket.id, quoteId)} />
+                )}
+
+                {/* Nothing selected yet — prompt the user to pick a quote before validation. */}
+                {!selectedQuote && (
+                  <Card className="border-0 shadow-sm border-l-4 border-l-muted">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <p className="text-sm text-muted-foreground">
+                        {ticket.quotes.length === 0
+                          ? "En attente d'un devis. Le devis apparaîtra ici dès sa réception par email."
+                          : "Choisissez un devis ci-dessus pour passer à la validation."}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* The validation card (send to owner / validate) only appears once a quote is selected. */}
+                {selectedQuote && (
+                <Card className="border-0 shadow-sm border-l-4 border-l-primary">
+                  <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" /> Devis sélectionné</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="p-3 bg-muted rounded-lg space-y-1">
+                      <p className="font-medium text-sm">{selectedQuote.artisanNom}</p>
+                      <p className="text-xs text-muted-foreground">{selectedQuote.description}</p>
+                      <p className="text-sm font-semibold mt-1">{selectedQuote.montant} € · {selectedQuote.delai}</p>
+                      {/* Only show docs linked to THIS quote. Fallback: if no doc has quote_id
+                          set yet (legacy rows), show all devis to preserve the previous behavior. */}
+                      {ticket.documents
+                        .filter((d) => d.document_type === "devis")
+                        .filter((d) =>
+                          ticket.documents.some((doc) => doc.quote_id)
+                            ? d.quote_id === selectedQuote.id
+                            : true,
+                        )
+                        .map(doc => (
+                        <a
+                          key={doc.id}
+                          href={doc.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-primary hover:underline text-xs font-medium pt-1 border-t border-border/50 mt-1"
+                        >
+                          <FileText className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{doc.file_name}</span>
+                        </a>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Devis établi suite au diagnostic sur place de l'artisan.</p>
+                    {willAutoValidate ? (
+                      <Badge className="bg-success/15 text-success border-0">Validé automatiquement (sous le seuil de délégation de {settings.delegation_threshold} €)</Badge>
+                    ) : (
+                      <Badge className="bg-warning/15 text-warning border-0">
+                        {settings.always_ask_owner
+                          ? "Accord propriétaire requis (règle agence)"
+                          : `Au-dessus du seuil (${settings.delegation_threshold} €) — Accord propriétaire requis`}
+                      </Badge>
+                    )}
+                    <Button
+                      onClick={() => {
+                        // Owner approval path in prod → open a preview modal so the gestionnaire can edit before sending.
+                        // Auto-validate path OR demo mode → keep the direct flow (no modal).
+                        if (!willAutoValidate && !settings.demo_mode) {
+                          setOwnerApprovalOpen(true);
+                        } else {
+                          ctx.validateQuote(ticket.id);
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" /> {willAutoValidate ? "Valider le devis" : "Envoyer au propriétaire"}
+                    </Button>
+                  </CardContent>
+                </Card>
+                )}
+
+                {/* Still allow contacting more artisans for additional quotes before validation (prod only). */}
+                {!settings.demo_mode && ctx.artisans.length > 0 && (
+                  <Card className="border-0 shadow-sm border-l-4 border-l-muted">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2"><Wrench className="h-4 w-4" /> Contacter un autre artisan pour comparer</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground mb-3">Avant de valider, vous pouvez demander un devis à d'autres artisans.</p>
+                      <div className="flex flex-wrap gap-2">
+                        {ctx.artisans
+                          .filter(a => !ticket.quotes.some(q => q.artisanId === a.id))
+                          .map(a => (
+                            <Button key={a.id} size="sm" variant="outline" className="opacity-80" onClick={() => setArtisanContactPending(a.id)}>
+                              <Send className="h-3 w-3 mr-1" /> {a.nom}
+                            </Button>
+                          ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             );
           })()}
 
           {/* Accord propriétaire */}
-          {ticket.status === "validation_proprio" && selectedQuote && (
+          {ticket.status === "validation_proprio" && selectedQuote && (() => {
+            const ownerMessages = ticket.messages["proprietaire"] ?? [];
+            const latestInbound = [...ownerMessages].reverse().find((m) => m.direction === "inbound");
+            const latestCategory = latestInbound?.ai_classification?.category;
+            const approvalDetected = latestCategory === "approval";
+            const refusalDetected = latestCategory === "owner_refusal";
+            return (
             <Card className="border-0 shadow-sm border-l-4 border-l-warning">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Accord propriétaire</CardTitle>
@@ -362,11 +479,55 @@ export default function TicketDetail() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
+                {approvalDetected && (
+                  <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-success">Accord détecté dans la réponse du propriétaire</p>
+                        {latestInbound?.ai_classification?.summary && (
+                          <p className="text-xs text-muted-foreground mt-0.5 italic">« {latestInbound.ai_classification.summary} »</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button size="sm" className="w-full" onClick={() => setOwnerResponseConfirmOpen(true)}>
+                      <ArrowRight className="h-3.5 w-3.5 mr-1.5" /> Confirmer l'accord et notifier artisan + locataire
+                    </Button>
+                  </div>
+                )}
+                {refusalDetected && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-destructive">Refus détecté dans la réponse du propriétaire</p>
+                        {latestInbound?.ai_classification?.summary && (
+                          <p className="text-xs text-muted-foreground mt-0.5 italic">« {latestInbound.ai_classification.summary} »</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-destructive border-destructive/30 hover:bg-destructive/5"
+                      onClick={() => ctx.ownerRespond(ticket.id, false)}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1.5" /> Confirmer le refus — chercher un nouvel artisan
+                    </Button>
+                  </div>
+                )}
                 <div className="p-3 bg-muted rounded-lg space-y-1">
                   <p className="font-medium text-sm">{selectedQuote.artisanNom}</p>
                   <p className="text-xs text-muted-foreground">{selectedQuote.description}</p>
                   <p className="text-sm font-semibold mt-1">{selectedQuote.montant} € · {selectedQuote.delai}</p>
-                  {ticket.documents.filter(d => d.document_type === "devis").map(doc => (
+                  {ticket.documents
+                    .filter((d) => d.document_type === "devis")
+                    .filter((d) =>
+                      ticket.documents.some((doc) => doc.quote_id)
+                        ? d.quote_id === selectedQuote.id
+                        : true,
+                    )
+                    .map(doc => (
                     <a
                       key={doc.id}
                       href={doc.file_url}
@@ -404,7 +565,8 @@ export default function TicketDetail() {
                 </div>
               </CardContent>
             </Card>
-          )}
+            );
+          })()}
 
           {/* Intervention — 3 blocs : date / preuves / facture */}
           {(ticket.status === "intervention" || ticket.status === "confirmation_passage") && (() => {
@@ -1038,6 +1200,42 @@ export default function TicketDetail() {
         />
       );
     })()}
+
+    {/* Owner response confirmation modal — shown when owner's reply was classified as approval. */}
+    {ownerResponseConfirmOpen && (() => {
+      const ownerMessages = ticket.messages["proprietaire"] ?? [];
+      const latestInbound = [...ownerMessages].reverse().find((m) => m.direction === "inbound");
+      return (
+        <OwnerResponseConfirmModal
+          open
+          ticket={ticket}
+          artisan={selectedQuote ? (ctx.getArtisan(selectedQuote.artisanId) ?? null) : null}
+          settings={settings}
+          aiSummary={latestInbound?.ai_classification?.summary}
+          onClose={() => setOwnerResponseConfirmOpen(false)}
+          onConfirm={(overrides) => {
+            setOwnerResponseConfirmOpen(false);
+            ctx.ownerRespond(ticket.id, true, overrides);
+          }}
+        />
+      );
+    })()}
+
+    {/* Owner approval preview modal — shown before sending the approval request to the owner. */}
+    {ownerApprovalOpen && selectedQuote && (
+      <OwnerApprovalModal
+        open
+        ticket={ticket}
+        artisan={ctx.getArtisan(selectedQuote.artisanId) ?? null}
+        quote={selectedQuote}
+        settings={settings}
+        onClose={() => setOwnerApprovalOpen(false)}
+        onConfirm={(subject, content, attachmentDocIds) => {
+          setOwnerApprovalOpen(false);
+          ctx.validateQuote(ticket.id, undefined, { subject, content, attachmentDocumentIds: attachmentDocIds });
+        }}
+      />
+    )}
     </>
   );
 }

@@ -62,17 +62,28 @@ export function DiscussionThread({
     el.style.height = `${Math.min(el.scrollHeight, 280)}px`;
   }, [body]);
 
+  // True once the thread has at least one prior message → we reuse its subject to keep
+  // Gmail/Outlook threading intact instead of exposing a subject field to the user.
+  const hasExistingThread = messages.length > 0 && defaultSubject.trim().length > 0;
+
   const handlePickTemplate = (tpl: EmailTemplate) => {
-    setSubject(tpl.subject);
+    // In an existing thread, ignore the template's subject (would break threading).
+    // Only the body is applied; the subject stays locked to the thread's subject.
+    if (!hasExistingThread) setSubject(tpl.subject);
     setBody(tpl.body);
     setActiveTemplate(tpl.id);
   };
 
   const handleSend = () => {
     if (!body.trim()) return;
-    onSend(body.trim(), subject.trim(), activeTemplate);
+    // In an existing thread, the subject input is hidden — always send with defaultSubject.
+    // In a new thread, use what the user typed, fall back to default if left blank.
+    const effectiveSubject = hasExistingThread
+      ? defaultSubject.trim()
+      : (subject.trim() || defaultSubject.trim());
+    onSend(body.trim(), effectiveSubject, activeTemplate);
     setBody("");
-    setSubject("");
+    setSubject(defaultSubject);
     setActiveTemplate(undefined);
   };
 
@@ -86,7 +97,7 @@ export function DiscussionThread({
       ) : (
         <div ref={scrollRef} className="space-y-3 max-h-64 overflow-y-auto pr-0.5">
           {messages.map(msg => {
-            const isOut = msg.from === "agence";
+            const isOut = msg.direction ? msg.direction === "outbound" : msg.from === "agence";
             return (
               <div key={msg.id} className={`flex flex-col gap-1 ${isOut ? "items-end" : "items-start"}`}>
                 {/* Meta row */}
@@ -116,12 +127,21 @@ export function DiscussionThread({
 
       {/* Compose — background-only separation, no visible borders */}
       <div className="rounded-lg bg-muted/40 overflow-hidden shadow-[0_0_0_1px_hsl(var(--border)/0.25)]">
-        <Input
-          value={subject}
-          onChange={e => setSubject(e.target.value)}
-          placeholder="Objet..."
-          className="border-0 rounded-none h-9 px-3 text-sm focus-visible:ring-0 bg-transparent"
-        />
+        {hasExistingThread ? (
+          // Thread already has messages → hide the subject field and show the locked subject
+          // discreetly, so the user knows where their reply is going and threading stays intact.
+          <div className="px-3 py-1.5 text-[11px] text-muted-foreground/80 truncate"
+               title={`Votre réponse sera envoyée dans la conversation « ${defaultSubject} »`}>
+            Re: <span className="italic">{defaultSubject}</span>
+          </div>
+        ) : (
+          <Input
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            placeholder={defaultSubject || "Objet..."}
+            className="border-0 rounded-none h-9 px-3 text-sm focus-visible:ring-0 bg-transparent"
+          />
+        )}
         <Textarea
           ref={textareaRef}
           value={body}

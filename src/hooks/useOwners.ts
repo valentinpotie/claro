@@ -13,6 +13,13 @@ function isUuid(value?: string | null): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+// Postgres rejects "" for DATE / constrained columns → ghost rows. Convert "" → null before writes.
+function sanitizeForDb<T extends Record<string, unknown>>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) out[k] = v === "" ? null : v;
+  return out as T;
+}
+
 export function useOwners(agencyId?: string | null) {
   const [owners, setOwners] = useState<Owner[]>(USE_SUPABASE ? [] : mockOwners);
   const [loading, setLoading] = useState(USE_SUPABASE);
@@ -36,17 +43,28 @@ export function useOwners(agencyId?: string | null) {
     const item: Owner = { id, ...data };
     setOwners(prev => [item, ...prev]);
     if (USE_SUPABASE && isUuid(agencyId)) {
-      try { await supabase.from("owners").insert({ ...item, agency_id: agencyId }); } catch (e) { console.error("Failed to insert owner", e); }
+      const { error } = await supabase.from("owners").insert(sanitizeForDb({ ...item, agency_id: agencyId }));
+      if (error) {
+        console.error("Failed to insert owner", error);
+        setOwners(prev => prev.filter(o => o.id !== id));
+        throw error;
+      }
     }
     return item;
   }, [agencyId]);
 
   const updateOwner = useCallback(async (id: string, data: Partial<Omit<Owner, "id">>) => {
+    const prevSnapshot = owners;
     setOwners(prev => prev.map(o => o.id === id ? { ...o, ...data } : o));
     if (USE_SUPABASE) {
-      try { await supabase.from("owners").update({ ...data, updated_at: new Date().toISOString() }).eq("id", id); } catch (e) { console.error("Failed to update owner", e); }
+      const { error } = await supabase.from("owners").update(sanitizeForDb({ ...data, updated_at: new Date().toISOString() })).eq("id", id);
+      if (error) {
+        console.error("Failed to update owner", error);
+        setOwners(prevSnapshot);
+        throw error;
+      }
     }
-  }, []);
+  }, [owners]);
 
   const removeOwner = useCallback(async (id: string) => {
     setOwners(prev => prev.filter(o => o.id !== id));
@@ -59,7 +77,14 @@ export function useOwners(agencyId?: string | null) {
     const items = rows.map(r => ({ id: USE_SUPABASE ? crypto.randomUUID() : `own-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...r }));
     setOwners(prev => [...items, ...prev]);
     if (USE_SUPABASE && isUuid(agencyId)) {
-      try { await supabase.from("owners").insert(items.map(i => ({ ...i, agency_id: agencyId }))); } catch (e) { console.error("Failed to bulk insert owners", e); }
+      const payload = items.map(i => sanitizeForDb({ ...i, agency_id: agencyId }));
+      const { error } = await supabase.from("owners").insert(payload);
+      if (error) {
+        console.error("Failed to bulk insert owners", error);
+        const rejectedIds = new Set(items.map(i => i.id));
+        setOwners(prev => prev.filter(o => !rejectedIds.has(o.id)));
+        throw error;
+      }
     }
     return items.length;
   }, [agencyId]);

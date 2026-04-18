@@ -240,7 +240,7 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
                   onSend={handleSend(selectedArtisanId)}
                   senderLabel="Vous"
                   receiverLabel={artisanName(selectedArtisanId)}
-                  defaultSubject=""
+                  defaultSubject={lastSubject(selectedArtisanId)}
                 />
               </>
             )}

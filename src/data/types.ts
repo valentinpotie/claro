@@ -33,6 +33,15 @@ export interface Quote {
   selected: boolean;
 }
 
+export type TicketMessageClassification = {
+  category: "acceptance" | "refusal" | "quote_sent" | "invoice_sent" | "proof_sent"
+    | "approval" | "owner_refusal" | "question" | "info" | "unknown";
+  confidence: "high" | "medium" | "low";
+  summary?: string;
+  clean_reply?: string;
+  extracted?: Record<string, unknown>;
+};
+
 export interface TicketMessage {
   id: string;
   from: "agence" | "artisan" | "proprietaire" | "locataire" | "syndic" | "assurance";
@@ -40,6 +49,10 @@ export interface TicketMessage {
   subject?: string;
   template_id?: string;
   timestamp: string;
+  /** "outbound" (sent by agency) vs "inbound" (received from artisan/tenant/owner/syndic) */
+  direction?: "outbound" | "inbound";
+  /** AI classification result (filled by classify-reply for inbound messages). */
+  ai_classification?: TicketMessageClassification;
 }
 
 export interface AIJournalEntry {
@@ -65,6 +78,9 @@ export interface TicketDocument {
   uploaded_by?: string;
   uploaded_at: string;
   description?: string;
+  /** When set, this document is attached to a specific quote. Used by the UI to show
+   *  only the PDFs of the currently-selected quote instead of all devis on the ticket. */
+  quote_id?: string;
 }
 
 export interface Ticket {
@@ -227,6 +243,8 @@ export interface AgencySettings {
   tour_completed: boolean;
   accountant_email: string;
   email_templates: EmailTemplate[];
+  /** true = actions fakées côté client (simulateAI). false = appels réels aux edge functions. */
+  demo_mode: boolean;
 }
 
 export const statusLabels: Record<TicketStatus, string> = {

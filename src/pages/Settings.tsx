@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home, Inbox, Copy, CheckCircle2, Building2 } from "lucide-react";
+import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home, Inbox, Copy, CheckCircle2, Building2, FlaskConical, Zap } from "lucide-react";
 import { EscalationDelaySettings } from "@/components/EscalationDelaySettings";
 
 const templateVariables = ["{{nom_agence}}", "{{adresse}}", "{{lot}}", "{{categorie}}", "{{description}}", "{{nom_artisan}}", "{{telephone_artisan}}", "{{nom_locataire}}", "{{telephone_locataire}}", "{{nom_proprietaire}}", "{{montant}}", "{{date_intervention}}"];
@@ -74,6 +74,37 @@ export default function Settings() {
         <h1 className="text-xl font-bold flex items-center gap-2"><SettingsIcon className="h-5 w-5" /> Paramètres</h1>
         <p className="text-sm text-muted-foreground">Configuration des règles de gestion de l'agence</p>
       </div>
+
+      {/* Mode démo / production */}
+      <Card className={`border-0 shadow-sm ${settings.demo_mode ? "ring-1 ring-amber-300 dark:ring-amber-700" : "ring-1 ring-emerald-300 dark:ring-emerald-700"}`}>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            {settings.demo_mode ? <FlaskConical className="h-4 w-4 text-amber-600" /> : <Zap className="h-4 w-4 text-emerald-600" />}
+            Mode {settings.demo_mode ? "démo" : "production"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 text-xs text-muted-foreground space-y-1">
+              {settings.demo_mode ? (
+                <>
+                  <p className="text-foreground font-medium">Actions simulées — aucun email réel envoyé.</p>
+                  <p>Les étapes du ticket (contact artisan, relances, accord propriétaire…) alimentent uniquement le Journal Claro pour la démo. Parfait pour présenter le produit sans risquer d'envoyer un mail à un vrai artisan.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-foreground font-medium">Actions réelles — les emails seront envoyés aux destinataires.</p>
+                  <p>Chaque clic qui déclenche un email (contact artisan, accord propriétaire…) appelle les edge functions qui envoient un vrai mail via Resend. Les réponses sont routées vers les tickets et apparaissent dans le thread Discussion.</p>
+                </>
+              )}
+            </div>
+            <Switch
+              checked={!settings.demo_mode}
+              onCheckedChange={(checked) => updateSettings({ demo_mode: !checked })}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Règles de gestion */}
       <Card className="border-0 shadow-sm">

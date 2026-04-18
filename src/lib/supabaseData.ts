@@ -74,6 +74,8 @@ type DbMessage = {
   template_id: string | null;
   sent_at: string | null;
   created_at: string | null;
+  direction: string | null;
+  ai_classification: unknown;
 };
 
 type DbPhoto = {
@@ -131,6 +133,7 @@ type DbAgency = {
   name: string | null;
   code: string | null;
   email_inbound: string | null;
+  demo_mode: boolean | null;
 };
 
 type DbAgencySettings = {
@@ -343,15 +346,15 @@ function toTicketStatus(value: string | null | undefined): TicketStatus {
   return statusFromDb[value ?? ""] ?? "signale";
 }
 
-function toTicketPriority(value: string | null | undefined): TicketPriority {
+export function toTicketPriority(value: string | null | undefined): TicketPriority {
   return priorityFromDb[value ?? ""] ?? "normale";
 }
 
-function toTicketCategory(value: string | null | undefined): TicketCategory {
+export function toTicketCategory(value: string | null | undefined): TicketCategory {
   return categoryFromDb[value ?? ""] ?? "autre";
 }
 
-function toResponsabilite(value: string | null | undefined): Responsabilite | undefined {
+export function toResponsabilite(value: string | null | undefined): Responsabilite | undefined {
   if (!value) return undefined;
   return responsibilityFromDb[value] ?? undefined;
 }
@@ -421,6 +424,7 @@ export function mapAgencySettings(
     enabled_priorities: asTicketPriorities(settingsRow?.enabled_priorities ?? fallback.enabled_priorities),
     tour_completed: settingsRow?.tour_completed ?? fallback.tour_completed,
     accountant_email: settingsRow?.accountant_email ?? fallback.accountant_email,
+    demo_mode: agency?.demo_mode ?? fallback.demo_mode,
     email_templates: (() => {
       const dbTemplates = templates
         .filter((template) => template.is_active !== false)
@@ -466,7 +470,7 @@ export async function fetchAgencyBundle(agencyId: string | null | undefined) {
     if (resolvedAgencyId) {
       const { data: agencyRow, error: agencyError } = await supabase
         .from("agencies")
-        .select("id, code, name, email_inbound")
+        .select("id, code, name, email_inbound, demo_mode")
         .eq("id", resolvedAgencyId)
         .maybeSingle();
       if (agencyError) console.warn("fetchAgencyBundle: agency query failed", agencyError.message);
@@ -474,7 +478,7 @@ export async function fetchAgencyBundle(agencyId: string | null | undefined) {
     } else {
       const { data: agencyRows, error: agencyError } = await supabase
         .from("agencies")
-        .select("id, code, name, email_inbound")
+        .select("id, code, name, email_inbound, demo_mode")
         .order("created_at", { ascending: true })
         .limit(1);
       if (agencyError) console.warn("fetchAgencyBundle: agency discovery failed", agencyError.message);
@@ -576,7 +580,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       .in("ticket_id", ticketIds),
     supabase
       .from("ticket_messages")
-      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at")
+      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at, direction, ai_classification")
       .in("ticket_id", ticketIds)
       .order("sent_at", { ascending: true }),
     supabase
@@ -633,6 +637,10 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
   const invoicesByTicket = groupByTicketId((invoiceRes.data as DbInvoice[] | null) ?? []);
 
   const mappedTickets = tickets.map((ticket) => {
+    // Source of truth for "which quote is selected" is tickets.selected_quote_id.
+    // Fall back to quote.is_selected only when the ticket has no explicit selection set
+    // (legacy rows). This ensures the UI never shows 2 quotes as selected at once even
+    // if the ticket_quotes table has stale is_selected=true on multiple rows.
     const quotes: Quote[] = (quotesByTicket[ticket.id] ?? []).map((quote) => ({
       id: quote.id,
       artisanId: quote.artisan_id ?? "",
@@ -640,7 +648,9 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       montant: quote.amount ?? 0,
       delai: quote.delay_text ?? "",
       description: quote.description ?? "",
-      selected: quote.is_selected ?? false,
+      selected: ticket.selected_quote_id
+        ? quote.id === ticket.selected_quote_id
+        : (quote.is_selected ?? false),
     }));
 
     const recipientTypeToLocal: Record<string, string> = {
@@ -656,6 +666,8 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
         subject: message.subject ?? undefined,
         template_id: message.template_id ?? undefined,
         timestamp: message.sent_at ?? message.created_at ?? new Date().toISOString(),
+        direction: (message.direction as "outbound" | "inbound" | null) ?? undefined,
+        ai_classification: (message.ai_classification as TicketMessage["ai_classification"]) ?? undefined,
       };
       acc[key] = acc[key] ? [...acc[key], nextMessage] : [nextMessage];
       return acc;

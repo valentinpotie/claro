@@ -48,6 +48,11 @@ export function useSignalements(agencyId?: string) {
     void fetchPending();
   }, [fetchPending]);
 
+  // (Previously a 3-second poll existed here as a safety net when the realtime UPDATE missed
+  // the ai_suggestion population by inbound-email. It caused Supabase auth-lock contention
+  // on page refresh — removed now that REPLICA IDENTITY FULL on inbound_emails guarantees
+  // realtime delivers full rows. Manual refresh button on dashboard is the backup.)
+
   // Realtime subscription on inbound_emails
   useEffect(() => {
     if (!USE_SUPABASE || !isUuid(agencyId)) return;

@@ -13,6 +13,19 @@ function isUuid(value?: string | null): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+/**
+ * Postgres rejects empty strings ("") for DATE / nullable typed columns → 400 Bad Request,
+ * which silently fails the write and leaves the UI showing a ghost row that only lives in
+ * local state. We convert empty strings to null before any write.
+ */
+function sanitizeForDb<T extends Record<string, unknown>>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = v === "" ? null : v;
+  }
+  return out as T;
+}
+
 export function useTenants(agencyId?: string | null) {
   const [tenants, setTenants] = useState<Tenant[]>(USE_SUPABASE ? [] : mockTenants);
   const [loading, setLoading] = useState(USE_SUPABASE);
@@ -36,17 +49,31 @@ export function useTenants(agencyId?: string | null) {
     const item: Tenant = { id, ...data };
     setTenants(prev => [item, ...prev]);
     if (USE_SUPABASE && isUuid(agencyId)) {
-      try { await supabase.from("tenants").insert({ ...item, agency_id: agencyId }); } catch (e) { console.error("Failed to insert tenant", e); }
+      const payload = sanitizeForDb({ ...item, agency_id: agencyId });
+      const { error } = await supabase.from("tenants").insert(payload);
+      if (error) {
+        console.error("Failed to insert tenant", error);
+        // Rollback local optimistic insert so the UI matches the DB
+        setTenants(prev => prev.filter(t => t.id !== id));
+        throw error;
+      }
     }
     return item;
   }, [agencyId]);
 
   const updateTenant = useCallback(async (id: string, data: Partial<Omit<Tenant, "id">>) => {
+    const prevSnapshot = tenants;
     setTenants(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
     if (USE_SUPABASE) {
-      try { await supabase.from("tenants").update({ ...data, updated_at: new Date().toISOString() }).eq("id", id); } catch (e) { console.error("Failed to update tenant", e); }
+      const payload = sanitizeForDb({ ...data, updated_at: new Date().toISOString() });
+      const { error } = await supabase.from("tenants").update(payload).eq("id", id);
+      if (error) {
+        console.error("Failed to update tenant", error);
+        setTenants(prevSnapshot);
+        throw error;
+      }
     }
-  }, []);
+  }, [tenants]);
 
   const removeTenant = useCallback(async (id: string) => {
     setTenants(prev => prev.filter(t => t.id !== id));
@@ -59,7 +86,14 @@ export function useTenants(agencyId?: string | null) {
     const items = rows.map(r => ({ id: USE_SUPABASE ? crypto.randomUUID() : `ten-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...r }));
     setTenants(prev => [...items, ...prev]);
     if (USE_SUPABASE && isUuid(agencyId)) {
-      try { await supabase.from("tenants").insert(items.map(i => ({ ...i, agency_id: agencyId }))); } catch (e) { console.error("Failed to bulk insert tenants", e); }
+      const payload = items.map(i => sanitizeForDb({ ...i, agency_id: agencyId }));
+      const { error } = await supabase.from("tenants").insert(payload);
+      if (error) {
+        console.error("Failed to bulk insert tenants", error);
+        const rejectedIds = new Set(items.map(i => i.id));
+        setTenants(prev => prev.filter(t => !rejectedIds.has(t.id)));
+        throw error;
+      }
     }
     return items.length;
   }, [agencyId]);

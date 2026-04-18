@@ -32,6 +32,7 @@ import Settings from "./pages/Settings";
 import AboutUs from "./pages/AboutUs";
 import Onboarding from "./pages/Onboarding";
 import LoaderPreview from "./pages/LoaderPreview";
+import DebugLogs from "./pages/DebugLogs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -105,6 +106,7 @@ const App = () => (
                         <Route path="/guide" element={<OnboardingGuard><AppLayout><Guide /></AppLayout></OnboardingGuard>} />
                         <Route path="/settings" element={<OnboardingGuard><AppLayout><Settings /></AppLayout></OnboardingGuard>} />
                         <Route path="/about" element={<OnboardingGuard><AppLayout><AboutUs /></AppLayout></OnboardingGuard>} />
+                        <Route path="/debug/logs" element={<AppLayout><DebugLogs /></AppLayout>} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </TicketProvider>

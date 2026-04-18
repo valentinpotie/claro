@@ -56,6 +56,7 @@ const defaultSettings: AgencySettings = {
   tour_completed: false,
   accountant_email: "",
   email_templates: defaultTemplates,
+  demo_mode: true,
 };
 
 export function loadSettings(): AgencySettings {
@@ -154,19 +155,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [remoteSettings]); // remoteSettings only changes when bundle changes — no loop
 
   // New account with no linked agency: ignore stale local state from previous sessions.
+  //
+  // Guards (in order) — reset ONLY for the specific "signed in but no agency" case.
+  // If we reset for any other null-profile state, a transient auth lock timeout or network
+  // blip on page refresh would boot an authenticated user back to onboarding.
   useEffect(() => {
     if (!USE_SUPABASE) return;
-    // Wait for auth to finish — don't reset while profile is still loading
-    if (authLoading) return;
-    // If profile has an agency, settings are valid
-    if (profile?.agency_id) return;
+    if (authLoading) return;           // auth is still resolving → wait
+    if (!user) return;                 // truly signed out → AuthGuard handles the redirect, don't touch settings
+    if (!profile) return;              // signed in but profile fetch failed (e.g. lock timeout) → don't conclude "no agency"
+    if (profile.agency_id) return;     // profile has an agency → settings are valid
 
+    // Only now: user is signed in, profile is fully loaded, and it has no agency_id.
     setSettings((prev) => {
-      // Only reset if settings claim onboarding is done but profile contradicts it
       if (!prev.onboarding_completed) return prev;
 
-      logSettings("Resetting stale settings — onboarding_completed=true but profile has no agency", {
-        profile_agency_id: profile?.agency_id ?? null,
+      logSettings("Resetting stale settings — profile loaded with no agency_id", {
+        profile_agency_id: profile.agency_id,
         settings_agency_id: prev.agency_id,
       });
       const reset: AgencySettings = {
@@ -179,7 +184,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       saveSettings(reset);
       return reset;
     });
-  }, [profile?.agency_id, authLoading]);
+  }, [user, profile, authLoading]);
 
   // Stable settings row ID — once assigned, never changes. Prevents duplicate rows.
   const settingsRowId = useMemo(() => {
@@ -215,8 +220,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       await supabase.from("agency_settings").upsert(settingsPayload, { onConflict: "id" });
     }
 
-    if ("agency_name" in data && targetAgencyId) {
-      await supabase.from("agencies").update({ name: next.agency_name }).eq("id", targetAgencyId);
+    const agencyPayload: Record<string, unknown> = {};
+    if ("agency_name" in data) agencyPayload.name = next.agency_name;
+    if ("demo_mode" in data) agencyPayload.demo_mode = next.demo_mode;
+    if (targetAgencyId && Object.keys(agencyPayload).length > 0) {
+      await supabase.from("agencies").update(agencyPayload).eq("id", targetAgencyId);
     }
 
     if ("email_templates" in data && targetAgencyId) {

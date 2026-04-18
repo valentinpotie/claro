@@ -33,11 +33,13 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
           {messages.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-4">Aucun message</p>
           )}
-          {messages.map(msg => (
-            <div key={msg.id} className={`p-2.5 rounded-[4px] text-sm ${msg.from === "agence" ? "bg-primary/10 ml-4" : "bg-muted mr-4"}`}>
+          {messages.map(msg => {
+            const isOut = msg.direction ? msg.direction === "outbound" : msg.from === "agence";
+            return (
+            <div key={msg.id} className={`p-2.5 rounded-[4px] text-sm ${isOut ? "bg-primary/10 ml-4" : "bg-muted mr-4"}`}>
               <div className="flex justify-between mb-0.5">
                 <span className="text-[10px] font-medium text-muted-foreground">
-                  {msg.from === "agence" ? "Vous" : displayName}
+                  {isOut ? "Vous" : displayName}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
                   {new Date(msg.timestamp).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -45,7 +47,8 @@ export function MessageThread({ artisanNom, messages, onSend }: Props) {
               </div>
               <p>{msg.content}</p>
             </div>
-          ))}
+            );
+          })}
         </div>
         <div className="flex gap-2">
           <Textarea

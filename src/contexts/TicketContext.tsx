@@ -1,7 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AppLoader } from "@/components/AppLoader";
 import { Ticket, Artisan, AIJournalEntry, Quote, TicketMessage, Responsabilite, TicketCategory, TicketPriority, TimeSlot, categoryLabels, InboundSignalement, TicketDocument, TicketDocumentType } from "@/data/types";
 import { initialTickets, initialArtisans } from "@/data/mockData";
 import { useSettings } from "@/contexts/SettingsContext";
+import { invokeSendTicketEmail, SendTicketEmailError } from "@/lib/ticketFunctions";
 import { USE_SUPABASE, supabase } from "@/lib/supabase";
 import { useTickets as useSupabaseTickets } from "@/hooks/useTickets";
 import { useArtisans as useSupabaseArtisans } from "@/hooks/useArtisans";
@@ -14,6 +16,9 @@ import {
   mapResponsabiliteToDb,
   mapStatusToDb,
   mapValidationToDb,
+  toTicketCategory,
+  toTicketPriority,
+  toResponsabilite,
 } from "@/lib/supabaseData";
 import { toast } from "sonner";
 import { getAutoMessageContent, buildTemplateVars } from "@/lib/templateUtils";
@@ -36,8 +41,10 @@ interface TicketContextType {
   qualifyTicket: (id: string) => void;
   sendArtisanContact: (ticketId: string, artisanId: string, overrideContent?: string, overrideSubject?: string) => void;
   receiveQuote: (ticketId: string) => void;
-  validateQuote: (ticketId: string, quoteId?: string) => void;
-  ownerRespond: (ticketId: string, approved: boolean) => void;
+  /** Marks one of the received quotes as selected (when several artisans sent quotes). */
+  selectQuote: (ticketId: string, quoteId: string) => void;
+  validateQuote: (ticketId: string, quoteId?: string, ownerEmailOverride?: { subject: string; content: string; attachmentDocumentIds?: string[] }) => void;
+  ownerRespond: (ticketId: string, approved: boolean, overrides?: { artisan?: { subject: string; content: string }; tenant?: { subject: string; content: string } }) => void;
   confirmPassage: (ticketId: string, confirmed: boolean) => void;
   advanceToFacturation: (ticketId: string) => void;
   validateFacture: (ticketId: string) => void;
@@ -60,6 +67,8 @@ interface TicketContextType {
   fetchTicketDocuments: (ticketId: string) => Promise<void>;
   uploadTicketDocument: (ticketId: string, file: File, documentType: TicketDocumentType, description?: string) => Promise<TicketDocument>;
   updateTicketDocument: (ticketId: string, docId: string, patch: { description?: string; document_type?: TicketDocumentType; file_name?: string }) => Promise<void>;
+  /** Re-fetch everything for a given ticket (row + messages + documents). Used by the manual "Rafraîchir" button. */
+  refreshTicket: (ticketId: string) => Promise<void>;
 }
 
 const TicketContext = createContext<TicketContextType | null>(null);
@@ -144,6 +153,10 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
   // Always-current agency_id — avoids stale closure when agency_id changes (e.g. onboarding completion).
   const agencyIdRef = useRef(settings.agency_id);
   agencyIdRef.current = settings.agency_id;
+  // Late-binding refs for fetch* helpers (defined further down). Lets the realtime
+  // subscription effect wire up without a temporal-dead-zone issue.
+  const fetchTicketMessagesRef = useRef<((ticketId: string) => Promise<void>) | null>(null);
+  const fetchTicketDocumentsRef = useRef<((ticketId: string) => Promise<void>) | null>(null);
 
   useEffect(() => {
     ticketsRef.current = tickets;
@@ -281,6 +294,42 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [settings.agency_id]);
 
+  // Realtime sur ticket_messages: permet d'afficher les réponses traitées par classify-reply
+  // sans que l'utilisateur doive refresh. On ne filtre pas côté DB (pas de filter sur agency_id
+  // pour cette table) — on filtre côté client en ne réagissant qu'aux tickets qu'on connaît.
+  useEffect(() => {
+    if (!USE_SUPABASE) return;
+
+    const channel = supabase
+      .channel("ticket_messages_live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ticket_messages" },
+        (payload) => {
+          const ticketId = (payload.new as { ticket_id?: string } | undefined)?.ticket_id;
+          if (!ticketId) return;
+          if (!ticketsRef.current.some((t) => t.id === ticketId)) return;
+          void fetchTicketMessagesRef.current?.(ticketId);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ticket_documents" },
+        (payload) => {
+          const ticketId = (payload.new as { ticket_id?: string } | undefined)?.ticket_id;
+          if (!ticketId) return;
+          if (!ticketsRef.current.some((t) => t.id === ticketId)) return;
+          // Re-fetch documents so signed URLs are regenerated and JSONB is properly parsed
+          void fetchTicketDocumentsRef.current?.(ticketId);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, []);
+
   const persistJournalEntry = useCallback(async (ticketId: string, action: { msg: string; type: AIJournalEntry["type"] }) => {
     if (!USE_SUPABASE) return;
     // Don't attempt DB writes with local placeholder IDs — they're not valid UUIDs.
@@ -417,6 +466,105 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  /**
+   * Dispatcher pour tous les emails sortants automatiques.
+   * - demo_mode=true  → persistOutboundMessage (local + ticket_messages, pas d'envoi réel)
+   * - demo_mode=false → invokeSendTicketEmail (edge function envoie via Resend + insert ticket_messages)
+   *
+   * threadKey peut être "locataire"/"proprietaire"/"syndic" ou un UUID d'artisan.
+   * useCase = clé template email (ex "auto:artisan_devis_valide"), utilisée côté edge function
+   * pour pull le template de l'agence. fallback* utilisés si le template n'existe pas.
+   */
+  /**
+   * Dispatcher pour les emails sortants. Retourne une Promise pour permettre aux callers
+   * multi-emails (validateFacture, etc.) d'orchestrer via Promise.allSettled et de détecter
+   * les échecs partiels (2/3 envoyés, 1 failed).
+   *
+   * Fire-and-forget compatible : les callers single-email ignorent simplement la Promise.
+   * Un toast d'erreur est affiché automatiquement en cas d'échec individuel.
+   */
+  const dispatchOutbound = useCallback(async (params: {
+    ticketId: string;
+    threadKey: string;
+    useCase: string;
+    fallbackSubject: string;
+    fallbackContent: string;
+    correlationId?: string; // shared id across a batch → /debug/logs groups them
+    attachmentDocumentIds?: string[]; // ticket_documents ids attached to the email (owner approval etc.)
+  }): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const { ticketId, threadKey, useCase, fallbackSubject, fallbackContent, correlationId, attachmentDocumentIds } = params;
+
+    const isArtisanUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(threadKey);
+    const recipientType: "artisan" | "locataire" | "proprietaire" | "syndic" =
+      isArtisanUuid ? "artisan" :
+      threadKey === "locataire" ? "locataire" :
+      threadKey === "proprietaire" ? "proprietaire" :
+      threadKey === "syndic" ? "syndic" : "locataire";
+    const artisanId = isArtisanUuid ? threadKey : undefined;
+
+    if (!settings.demo_mode && USE_SUPABASE && !ticketId.startsWith("local-")) {
+      try {
+        const res = await invokeSendTicketEmail({
+          ticket_id: ticketId,
+          recipient_type: recipientType,
+          artisan_id: artisanId,
+          template_use_case: useCase,
+          fallback_content: fallbackContent,
+          fallback_subject: fallbackSubject,
+          correlation_id: correlationId,
+          attachment_document_ids: attachmentDocumentIds,
+        });
+        await fetchTicketMessagesRef.current?.(ticketId);
+        // Partial failure: email sent but local DB insert of ticket_messages failed.
+        // Surface it so the gestionnaire knows the thread may not reflect the send.
+        if (res.message_logged === false && !correlationId) {
+          toast.warning("Email envoyé mais non enregistré dans la discussion", {
+            description: `Le mail est parti chez le destinataire. Erreur locale : ${res.message_log_error ?? "inconnue"}. Log : ${res.correlation_id.slice(0, 8)}`,
+            duration: 10000,
+          });
+        }
+        return { ok: true };
+      } catch (err) {
+        const msg = err instanceof SendTicketEmailError ? err.message : err instanceof Error ? err.message : String(err);
+        console.error("dispatchOutbound failed", { useCase, threadKey, err });
+        // Only toast here if it's NOT part of a batch — batch callers show an aggregate toast
+        if (!correlationId) {
+          toast.error(`Échec envoi email (${useCase})`, { description: msg });
+        }
+        return { ok: false, error: msg };
+      }
+    }
+
+    // Demo mode: local + ticket_messages (no real email)
+    persistOutboundMessage(ticketId, threadKey, fallbackContent);
+    return { ok: true };
+  }, [settings.demo_mode, persistOutboundMessage]);
+
+  /**
+   * Envoie plusieurs emails en parallèle, reporte un résumé clair à l'utilisateur
+   * ("2/3 envoyés"), et logue dans function_logs via un correlation_id partagé pour
+   * que /debug/logs groupe tout sous un même plier. Aucun rollback possible (Resend
+   * ne supporte pas les transactions), mais le gestionnaire sait exactement ce qui
+   * est passé et ce qui a raté.
+   */
+  const dispatchOutboundBatch = useCallback(async (
+    label: string,
+    items: Array<{ ticketId: string; threadKey: string; useCase: string; fallbackSubject: string; fallbackContent: string }>,
+  ): Promise<{ sent: number; failed: number }> => {
+    if (items.length === 0) return { sent: 0, failed: 0 };
+    const correlationId = crypto.randomUUID();
+    const results = await Promise.all(items.map((item) => dispatchOutbound({ ...item, correlationId })));
+    const sent = results.filter((r) => r.ok).length;
+    const failed = results.length - sent;
+    if (failed > 0 && !settings.demo_mode) {
+      toast.warning(`${label} : ${sent}/${items.length} emails envoyés`, {
+        description: `${failed} email${failed > 1 ? "s" : ""} en échec. Log : ${correlationId.slice(0, 8)} (visible sur /debug/logs).`,
+        duration: 12000,
+      });
+    }
+    return { sent, failed };
+  }, [dispatchOutbound, settings.demo_mode]);
+
   const createTicket = (data: { titre: string; description: string; categorie: TicketCategory; priorite: TicketPriority; urgence: boolean; locataireNom: string; locataireTel: string; locataireEmail: string; adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string; tenant_id?: string; property_id?: string; owner_id?: string; mailSource?: { from: string; to: string; subject: string; body: string; receivedAt: string } }) => {
     const now = new Date().toISOString();
     const newTicket: Ticket = {
@@ -543,6 +691,44 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!artisan || !ticket) return;
     const defaultContent = `Bonjour ${artisan.nom},\n\nNous avons un problème de ${ticket.categorie} au ${ticket.bien.adresse}.\n\nCoordonnées du locataire :\n- Nom : ${ticket.locataire.nom}\n- Téléphone : ${ticket.locataire.telephone}\n- Email : ${ticket.locataire.email}\n\nCoordonnées du propriétaire :\n- Nom : ${ticket.bien.proprietaire}\n- Téléphone : ${ticket.bien.telephoneProprio}\n- Email : ${ticket.bien.emailProprio}\n\nPouvez-vous vous déplacer pour faire un diagnostic sur place ?\n\nMerci.`;
+    const defaultSubject = overrideSubject ?? `Demande d'intervention — ${ticket.bien.adresse}`;
+
+    if (!settings.demo_mode && USE_SUPABASE && !ticketId.startsWith("local-")) {
+      // === Production: real email via edge function ===
+      // We DON'T do optimistic message UI — we wait for the edge function so the user sees a truthful state.
+      // The edge function inserts ticket_messages itself; we only patch artisanId here + let the UI refetch.
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, artisanId } : t));
+      void (async () => {
+        try {
+          await syncTicketPatch(ticketId, { artisanId });
+          const res = await invokeSendTicketEmail({
+            ticket_id: ticketId,
+            recipient_type: "artisan",
+            artisan_id: artisanId,
+            fallback_content: overrideContent ?? defaultContent,
+            fallback_subject: defaultSubject,
+          });
+          await fetchTicketMessagesRef.current?.(ticketId);
+          toast.success(`Email envoyé à ${artisan.nom}`, {
+            description: `Reply-to: ${settings.email_inbound} — log ${res.correlation_id.slice(0, 8)}`,
+          });
+          simulateAI(ticketId, [
+            { msg: `Email réellement envoyé à ${artisan.nom} (${artisan.email})`, type: "message_sent" },
+            { msg: `Sujet : [${ticket.reference}] ${defaultSubject}`, type: "message_sent" },
+            { msg: "En attente de la réponse par email…", type: "notification" },
+          ]);
+        } catch (err) {
+          const msg = err instanceof SendTicketEmailError ? err.message : err instanceof Error ? err.message : String(err);
+          console.error("sendArtisanContact (prod) failed", err);
+          toast.error("Échec de l'envoi", { description: msg });
+          // Rollback artisanId patch locally — the user will see no change and can retry
+          setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, artisanId: ticket.artisanId } : t));
+        }
+      })();
+      return;
+    }
+
+    // === Demo mode: fake everything client-side (behavior inchangé) ===
     const msg: TicketMessage = {
       id: `msg-${Date.now()}`, from: "agence",
       content: overrideContent ?? defaultContent,
@@ -577,7 +763,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Demande de déplacement pour diagnostic : ${ticket.titre}`, type: "message_sent" },
     ]);
 
-    // Simulate artisan response after 3 seconds
+    // Simulate artisan response after 3 seconds (demo only)
     setTimeout(() => {
       const replyMsg: TicketMessage = {
         id: `msg-${Date.now()}-reply`, from: "artisan",
@@ -608,7 +794,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         { msg: "En attente du devis après diagnostic…", type: "notification" },
       ]);
     }, 3000);
-  }, [artisans, tickets, simulateAI, syncTicketPatch]);
+  }, [artisans, tickets, simulateAI, syncTicketPatch, settings.demo_mode, settings.email_inbound]);
 
   const receiveQuote = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -670,7 +856,52 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, [tickets, artisans, refreshRemoteTickets, simulateAI, syncTicketPatch]);
 
-  const validateQuote = useCallback((ticketId: string, _quoteId?: string) => {
+  /**
+   * Marks a received quote as the selected one on the ticket. Used when multiple quotes arrived
+   * (via classify-reply from different artisans) and the gestionnaire clicks "Choisir" on one.
+   *
+   * Side effects:
+   *   - ticket_quotes.is_selected updated for the chosen row (others reset to false)
+   *   - tickets.selected_quote_id updated
+   *   - if the ticket was still in "contact_artisan" (edge case when classify-reply missed the
+   *     auto-transition), it is moved to "reception_devis" so the validation UI appears.
+   */
+  const selectQuote = useCallback((ticketId: string, quoteId: string) => {
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+    const shouldAdvanceStatus = ticket.status === "contact_artisan";
+
+    // Local optimistic update
+    setTickets((prev) => prev.map((t) => t.id !== ticketId ? t : {
+      ...t,
+      selectedQuoteId: quoteId,
+      quotes: t.quotes.map((q) => ({ ...q, selected: q.id === quoteId })),
+      status: shouldAdvanceStatus ? "reception_devis" : t.status,
+    }));
+
+    void (async () => {
+      if (!USE_SUPABASE) return;
+      if (ticketId.startsWith("local-")) return;
+      try {
+        // Reset all quotes to is_selected=false for this ticket, then set the chosen one to true.
+        // Two-step to avoid a unique-per-ticket constraint issue if there were one.
+        await supabase.from("ticket_quotes").update({ is_selected: false }).eq("ticket_id", ticketId);
+        await supabase.from("ticket_quotes").update({ is_selected: true }).eq("id", quoteId);
+        await syncTicketPatch(ticketId, {
+          selectedQuoteId: quoteId,
+          ...(shouldAdvanceStatus ? { status: "reception_devis" as const } : {}),
+        });
+      } catch (error) {
+        console.error("Failed to persist selectQuote", error);
+      }
+    })();
+  }, [tickets, syncTicketPatch]);
+
+  const validateQuote = useCallback((
+    ticketId: string,
+    _quoteId?: string,
+    ownerEmailOverride?: { subject: string; content: string; attachmentDocumentIds?: string[] },
+  ) => {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket) return;
     const selectedQuote = ticket.quotes.find(q => q.id === ticket.selectedQuoteId);
@@ -684,7 +915,17 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         { msg: `Demande d'accord envoyée à ${ticket.bien.proprietaire} (${ticket.bien.emailProprio})`, type: "message_sent" },
         { msg: "En attente de l'accord propriétaire…", type: "notification" },
       ], () => {
-        persistOutboundMessage(ticketId, "proprietaire", autoContent("auto:proprietaire_accord_devis", ticket, artisan, `Bonjour, nous sollicitons votre accord pour le devis de ${selectedQuote.montant} € concernant votre bien au ${ticket.bien.adresse}. Merci de nous confirmer votre accord.`));
+        const defaultSubject = `Demande d'accord pour devis — ${ticket.bien.adresse}`;
+        const defaultContent = autoContent("auto:proprietaire_accord_devis", ticket, artisan, `Bonjour, nous sollicitons votre accord pour le devis de ${selectedQuote.montant} € concernant votre bien au ${ticket.bien.adresse}. Merci de nous confirmer votre accord.`);
+        dispatchOutbound({
+          ticketId, threadKey: "proprietaire",
+          // If the user previewed + edited in the modal, skip the template lookup and send the
+          // exact content as-is. Otherwise fall back to the usual template path.
+          useCase: ownerEmailOverride ? "" : "auto:proprietaire_accord_devis",
+          fallbackSubject: ownerEmailOverride?.subject ?? defaultSubject,
+          fallbackContent: ownerEmailOverride?.content ?? defaultContent,
+          attachmentDocumentIds: ownerEmailOverride?.attachmentDocumentIds,
+        });
         update(ticketId, { status: "validation_proprio", validationStatus: "en_attente" });
         void syncTicketPatch(ticketId, { status: "validation_proprio", validationStatus: "en_attente" }).catch((error) => {
           console.error("Failed to sync quote validation (owner needed)", error);
@@ -699,17 +940,27 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         { msg: "Passage à l'étape Intervention", type: "action" },
       ], () => {
         const artisanThreadKey = ticket.artisanId ?? selectedQuote.artisanId;
-        if (artisanThreadKey) persistOutboundMessage(ticketId, artisanThreadKey, autoContent("auto:artisan_devis_valide", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nLe devis de ${selectedQuote.montant} € a été validé. Merci de prendre contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`));
-        persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_artisan_vient", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nVotre demande a été validée. L'artisan ${artisan?.nom ?? ""} va prochainement prendre contact avec vous pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`));
+        const batchItems = [] as Array<{ ticketId: string; threadKey: string; useCase: string; fallbackSubject: string; fallbackContent: string }>;
+        if (artisanThreadKey) batchItems.push({
+          ticketId, threadKey: artisanThreadKey, useCase: "auto:artisan_devis_valide",
+          fallbackSubject: `Devis validé — ${ticket.bien.adresse}`,
+          fallbackContent: autoContent("auto:artisan_devis_valide", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nLe devis de ${selectedQuote.montant} € a été validé. Merci de prendre contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`),
+        });
+        batchItems.push({
+          ticketId, threadKey: "locataire", useCase: "auto:locataire_artisan_vient",
+          fallbackSubject: `Votre demande avance — ${ticket.bien.adresse}`,
+          fallbackContent: autoContent("auto:locataire_artisan_vient", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nVotre demande a été validée. L'artisan ${artisan?.nom ?? ""} va prochainement prendre contact avec vous pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`),
+        });
+        void dispatchOutboundBatch("Devis validé automatiquement", batchItems);
         update(ticketId, { status: "intervention", validationStatus: "approuve" });
         void syncTicketPatch(ticketId, { status: "intervention", validationStatus: "approuve" }).catch((error) => {
           console.error("Failed to sync quote validation (auto)", error);
         });
       });
     }
-  }, [tickets, artisans, needsOwnerApproval, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, artisans, needsOwnerApproval, autoContent, dispatchOutbound, dispatchOutboundBatch, simulateAI, syncTicketPatch, update]);
 
-  const ownerRespond = useCallback((ticketId: string, approved: boolean) => {
+  const ownerRespond = useCallback((ticketId: string, approved: boolean, overrides?: { artisan?: { subject: string; content: string }; tenant?: { subject: string; content: string } }) => {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket) return;
     const artisan = artisans.find(a => a.id === ticket.artisanId);
@@ -720,8 +971,23 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
         { msg: "Passage à l'étape Intervention", type: "action" },
       ], () => {
-        if (ticket.artisanId) persistOutboundMessage(ticketId, ticket.artisanId, autoContent("auto:artisan_devis_valide", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nLe propriétaire a approuvé le devis de ${ticket.quotes.find(q => q.id === ticket.selectedQuoteId)?.montant ?? ""} €. Merci de prendre contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`));
-        persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_proprio_approuve", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nL'intervention au ${ticket.bien.adresse} a été confirmée par le propriétaire. L'artisan ${artisan?.nom ?? ""} va prochainement prendre contact avec vous pour convenir d'une date de passage.`));
+        const artisanDefaultSubject = `Devis approuvé — ${ticket.bien.adresse}`;
+        const artisanDefaultContent = autoContent("auto:artisan_devis_valide", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nLe propriétaire a approuvé le devis de ${ticket.quotes.find(q => q.id === ticket.selectedQuoteId)?.montant ?? ""} €. Merci de prendre contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour convenir d'une date d'intervention au ${ticket.bien.adresse}.`);
+        const tenantDefaultSubject = `Intervention confirmée — ${ticket.bien.adresse}`;
+        const tenantDefaultContent = autoContent("auto:locataire_proprio_approuve", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nL'intervention au ${ticket.bien.adresse} a été confirmée par le propriétaire. L'artisan ${artisan?.nom ?? ""} va prochainement prendre contact avec vous pour convenir d'une date de passage.`);
+
+        const ownerApprovedBatch: Array<{ ticketId: string; threadKey: string; useCase: string; fallbackSubject: string; fallbackContent: string }> = [];
+        if (ticket.artisanId) ownerApprovedBatch.push({
+          ticketId, threadKey: ticket.artisanId, useCase: "auto:artisan_devis_valide",
+          fallbackSubject: overrides?.artisan?.subject ?? artisanDefaultSubject,
+          fallbackContent: overrides?.artisan?.content ?? artisanDefaultContent,
+        });
+        ownerApprovedBatch.push({
+          ticketId, threadKey: "locataire", useCase: "auto:locataire_proprio_approuve",
+          fallbackSubject: overrides?.tenant?.subject ?? tenantDefaultSubject,
+          fallbackContent: overrides?.tenant?.content ?? tenantDefaultContent,
+        });
+        void dispatchOutboundBatch("Approbation propriétaire", ownerApprovedBatch);
         update(ticketId, { status: "intervention", validationStatus: "approuve" });
         void syncTicketPatch(ticketId, { status: "intervention", validationStatus: "approuve" }).catch((error) => {
           console.error("Failed to sync owner response", error);
@@ -738,7 +1004,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         });
       });
     }
-  }, [tickets, artisans, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, artisans, autoContent, dispatchOutbound, dispatchOutboundBatch, simulateAI, syncTicketPatch, update]);
 
   const confirmPassage = useCallback((ticketId: string, confirmed: boolean) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -751,7 +1017,11 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
           { msg: `Email automatique envoyé à ${ticket.locataire.nom} pour demander une preuve de passage (photo/vidéo)`, type: "message_sent" },
           { msg: "Passage à l'étape Confirmation (en attente de la preuve locataire)", type: "action" },
         ], () => {
-          persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_preuve_passage", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nL'artisan nous a transmis sa facture. Pourriez-vous nous faire parvenir une photo ou une vidéo confirmant que l'intervention a bien eu lieu à votre domicile ?`));
+          dispatchOutbound({
+            ticketId, threadKey: "locataire", useCase: "auto:locataire_preuve_passage",
+            fallbackSubject: `Confirmation d'intervention — ${ticket.bien.adresse}`,
+            fallbackContent: autoContent("auto:locataire_preuve_passage", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nL'artisan nous a transmis sa facture. Pourriez-vous nous faire parvenir une photo ou une vidéo confirmant que l'intervention a bien eu lieu à votre domicile ?`),
+          });
           update(ticketId, { status: "confirmation_passage", passageConfirme: false });
           void syncTicketPatch(ticketId, { status: "confirmation_passage", passageConfirme: false }).catch((error) => {
             console.error("Failed to sync confirmation wait state", error);
@@ -810,7 +1080,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       }
       return;
     }
-  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, dispatchOutbound, simulateAI, syncTicketPatch, update]);
 
   const validateFacture = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -825,15 +1095,29 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Information de clôture envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
       { msg: "Passage à l'étape Clôture", type: "action" },
     ], () => {
-      if (ticket.artisanId) persistOutboundMessage(ticketId, ticket.artisanId, autoContent("auto:artisan_facture_payee", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nNous avons bien reçu et validé votre facture de ${ticket.facture!.montant} €. Le paiement vous a été transmis. Merci pour votre intervention.`));
-      persistOutboundMessage(ticketId, "proprietaire", autoContent("auto:proprietaire_facture", ticket, artisan, `Bonjour,\n\nVoici le compte-rendu d'intervention pour votre bien au ${ticket.bien.adresse}. La facture de ${ticket.facture!.montant} € a été réglée.`));
-      persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_cloture", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nL'intervention à votre domicile est terminée et votre dossier est désormais clôturé. N'hésitez pas à nous contacter pour tout nouveau problème.`));
+      const factureBatch: Array<{ ticketId: string; threadKey: string; useCase: string; fallbackSubject: string; fallbackContent: string }> = [];
+      if (ticket.artisanId) factureBatch.push({
+        ticketId, threadKey: ticket.artisanId, useCase: "auto:artisan_facture_payee",
+        fallbackSubject: `Paiement transmis — ${ticket.bien.adresse}`,
+        fallbackContent: autoContent("auto:artisan_facture_payee", ticket, artisan, `Bonjour ${artisan?.nom ?? ""},\n\nNous avons bien reçu et validé votre facture de ${ticket.facture!.montant} €. Le paiement vous a été transmis. Merci pour votre intervention.`),
+      });
+      factureBatch.push({
+        ticketId, threadKey: "proprietaire", useCase: "auto:proprietaire_facture",
+        fallbackSubject: `Compte-rendu travaux — ${ticket.bien.adresse}`,
+        fallbackContent: autoContent("auto:proprietaire_facture", ticket, artisan, `Bonjour,\n\nVoici le compte-rendu d'intervention pour votre bien au ${ticket.bien.adresse}. La facture de ${ticket.facture!.montant} € a été réglée.`),
+      });
+      factureBatch.push({
+        ticketId, threadKey: "locataire", useCase: "auto:locataire_cloture",
+        fallbackSubject: `Dossier clôturé — ${ticket.bien.adresse}`,
+        fallbackContent: autoContent("auto:locataire_cloture", ticket, artisan, `Bonjour ${ticket.locataire.nom},\n\nL'intervention à votre domicile est terminée et votre dossier est désormais clôturé. N'hésitez pas à nous contacter pour tout nouveau problème.`),
+      });
+      void dispatchOutboundBatch("Validation facture", factureBatch);
       update(ticketId, { status: "cloture", factureValidee: true, facture: { ...ticket.facture!, payee: true } });
       void syncTicketPatch(ticketId, { status: "cloture", factureValidee: true, facture: { ...ticket.facture!, payee: true } }).catch((error) => {
         console.error("Failed to sync invoice validation", error);
       });
     });
-  }, [tickets, artisans, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, artisans, autoContent, dispatchOutbound, dispatchOutboundBatch, simulateAI, syncTicketPatch, update]);
 
   /**
    * Closes the ticket without sending any automatic messages.
@@ -871,14 +1155,24 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Compte-rendu complet envoyé à ${ticket.bien.proprietaire}`, type: "message_sent" },
       { msg: "Ticket archivé dans la base de données", type: "action" },
     ], () => {
-      persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_cloture", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nVotre demande a bien été traitée. Votre dossier est désormais clôturé. N'hésitez pas à nous contacter pour tout nouveau problème.`));
-      persistOutboundMessage(ticketId, "proprietaire", autoContent("auto:proprietaire_cloture", ticket, null, `Bonjour,\n\nVoici le compte-rendu complet pour votre bien au ${ticket.bien.adresse}. Le dossier "${ticket.titre}" a été clôturé avec succès.`));
+      void dispatchOutboundBatch("Clôture ticket", [
+        {
+          ticketId, threadKey: "locataire", useCase: "auto:locataire_cloture",
+          fallbackSubject: `Dossier clôturé — ${ticket.bien.adresse}`,
+          fallbackContent: autoContent("auto:locataire_cloture", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nVotre demande a bien été traitée. Votre dossier est désormais clôturé. N'hésitez pas à nous contacter pour tout nouveau problème.`),
+        },
+        {
+          ticketId, threadKey: "proprietaire", useCase: "auto:proprietaire_cloture",
+          fallbackSubject: `Compte-rendu — ${ticket.bien.adresse}`,
+          fallbackContent: autoContent("auto:proprietaire_cloture", ticket, null, `Bonjour,\n\nVoici le compte-rendu complet pour votre bien au ${ticket.bien.adresse}. Le dossier "${ticket.titre}" a été clôturé avec succès.`),
+        },
+      ]);
       update(ticketId, { status: "cloture" });
       void syncTicketPatch(ticketId, { status: "cloture" }).catch((error) => {
         console.error("Failed to sync ticket closure", error);
       });
     });
-  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, dispatchOutbound, dispatchOutboundBatch, simulateAI, syncTicketPatch, update]);
 
   const contactSyndic = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -889,13 +1183,17 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Description : ${ticket.description.slice(0, 80)}…`, type: "message_sent" },
       { msg: "En attente de réponse du syndic…", type: "notification" },
     ], () => {
-      persistOutboundMessage(ticketId, "syndic", autoContent("auto:contact_syndic", ticket, null, `Bonjour,\n\nNous vous signalons un incident dans les parties communes au ${ticket.bien.adresse}.\n\nDescription : ${ticket.description}\n\nMerci de bien vouloir prendre en charge ce problème dans les meilleurs délais.`));
+      dispatchOutbound({
+        ticketId, threadKey: "syndic", useCase: "auto:contact_syndic",
+        fallbackSubject: `Signalement incident — ${ticket.bien.adresse}`,
+        fallbackContent: autoContent("auto:contact_syndic", ticket, null, `Bonjour,\n\nNous vous signalons un incident dans les parties communes au ${ticket.bien.adresse}.\n\nDescription : ${ticket.description}\n\nMerci de bien vouloir prendre en charge ce problème dans les meilleurs délais.`),
+      });
       update(ticketId, { status: "relance_syndic", syndicRelances: [] });
       void syncTicketPatch(ticketId, { status: "relance_syndic" }).catch((error) => {
         console.error("Failed to sync syndic contact", error);
       });
     });
-  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, dispatchOutbound, simulateAI, syncTicketPatch, update]);
 
   const relanceSyndic = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -909,7 +1207,11 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: numero >= 2 ? "Toujours sans réponse du syndic" : "En attente de réponse…", type: "notification" },
       ...(isEscalade ? [{ msg: "Seuil de relances atteint — passage en escalade", type: "action" as const }] : []),
     ], () => {
-      persistOutboundMessage(ticketId, "syndic", autoContent("auto:relance_syndic", ticket, null, `Bonjour,\n\nRelance n°${numero} — Sans réponse de votre part depuis notre précédent contact concernant l'incident au ${ticket.bien.adresse}. Merci de bien vouloir traiter ce signalement dans les meilleurs délais.`));
+      dispatchOutbound({
+        ticketId, threadKey: "syndic", useCase: "auto:relance_syndic",
+        fallbackSubject: `Relance n°${numero} — Incident ${ticket.bien.adresse}`,
+        fallbackContent: autoContent("auto:relance_syndic", ticket, null, `Bonjour,\n\nRelance n°${numero} — Sans réponse de votre part depuis notre précédent contact concernant l'incident au ${ticket.bien.adresse}. Merci de bien vouloir traiter ce signalement dans les meilleurs délais.`),
+      });
       if (isEscalade) {
         update(ticketId, { status: "escalade_syndic", syndicRelances: [...relances, { date, numero }], syndicEscalade: true });
         void syncTicketPatch(ticketId, { status: "escalade_syndic" }).catch((error) => {
@@ -933,7 +1235,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to persist syndic followup", error);
       }
     })();
-  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, dispatchOutbound, simulateAI, syncTicketPatch, update]);
 
   const escaladeSyndic = useCallback((ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -957,22 +1259,61 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       { msg: `Notification envoyée à ${ticket.locataire.nom}`, type: "message_sent" },
       { msg: "Passage à la clôture", type: "action" },
     ], () => {
-      persistOutboundMessage(ticketId, "locataire", autoContent("auto:locataire_cloture", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nBonne nouvelle : le syndic est intervenu et le problème au ${ticket.bien.adresse} est en cours de résolution. Votre dossier sera prochainement clôturé.`));
+      dispatchOutbound({
+        ticketId, threadKey: "locataire", useCase: "auto:locataire_cloture",
+        fallbackSubject: `Votre dossier — ${ticket.bien.adresse}`,
+        fallbackContent: autoContent("auto:locataire_cloture", ticket, null, `Bonjour ${ticket.locataire.nom},\n\nBonne nouvelle : le syndic est intervenu et le problème au ${ticket.bien.adresse} est en cours de résolution. Votre dossier sera prochainement clôturé.`),
+      });
       update(ticketId, { status: "cloture" });
       void syncTicketPatch(ticketId, { status: "cloture" }).catch((error) => {
         console.error("Failed to sync syndic resolution", error);
       });
     });
-  }, [tickets, autoContent, persistOutboundMessage, simulateAI, syncTicketPatch, update]);
+  }, [tickets, autoContent, dispatchOutbound, simulateAI, syncTicketPatch, update]);
 
   const addMessage = useCallback((ticketId: string, threadKey: string, content: string, from: "agence" | "artisan", subject?: string, templateId?: string) => {
+    const isArtisanUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(threadKey);
+
+    // ── PROD: message manuel agence → vrai email via send-ticket-email ──────────
+    // L'edge function envoie via Resend (avec threading headers) + insère ticket_messages.
+    // On skip l'optimistic update pour éviter le doublon au refetch.
+    if (from === "agence" && !settings.demo_mode && USE_SUPABASE && !ticketId.startsWith("local-")) {
+      const recipientType: "artisan" | "locataire" | "proprietaire" | "syndic" =
+        isArtisanUuid ? "artisan" :
+        threadKey === "locataire" ? "locataire" :
+        threadKey === "proprietaire" ? "proprietaire" :
+        threadKey === "syndic" ? "syndic" : "locataire";
+
+      void (async () => {
+        try {
+          const res = await invokeSendTicketEmail({
+            ticket_id: ticketId,
+            recipient_type: recipientType,
+            artisan_id: isArtisanUuid ? threadKey : undefined,
+            template_use_case: templateId,
+            fallback_content: content,
+            fallback_subject: subject?.trim() || "Message concernant votre dossier",
+          });
+          await fetchTicketMessagesRef.current?.(ticketId);
+          toast.success("Message envoyé", { description: `Log : ${res.correlation_id.slice(0, 8)}` });
+        } catch (err) {
+          const errMsg = err instanceof SendTicketEmailError ? err.message : err instanceof Error ? err.message : String(err);
+          console.error("addMessage (prod) failed", err);
+          toast.error("Échec envoi message", { description: errMsg });
+        }
+      })();
+      return;
+    }
+
+    // ── DEMO ou from=artisan : comportement simulé (local + insert ticket_messages) ──
     const msg: TicketMessage = { id: `msg-${Date.now()}`, from, content, subject, template_id: templateId, timestamp: new Date().toISOString() };
     setTickets(prev => prev.map(t => t.id === ticketId ? {
       ...t, messages: { ...t.messages, [threadKey]: [...(t.messages[threadKey] || []), msg] }
     } : t));
 
     // If the artisan sends the invoice by email, keep the workflow on Intervention and trigger
-    // an automatic request to tenant proof before billing.
+    // an automatic request to tenant proof before billing. (Demo-only; in prod this flow is
+    // handled by classify-reply on the inbound email.)
     if (from === "artisan") {
       const normalized = content.toLowerCase();
       const invoiceMentioned = /facture|invoice|pdf|pi[eè]ce jointe/.test(normalized);
@@ -997,15 +1338,13 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       if (!USE_SUPABASE) return;
       if (ticketId.startsWith("local-")) return;
       try {
-        // threadKey is either an artisan UUID or a stakeholder key (locataire, proprietaire, syndic, assurance)
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(threadKey);
         const recipientTypeMap: Record<string, string> = {
           locataire: "tenant", proprietaire: "owner", syndic: "syndic", assurance: "insurance",
         };
         await supabase.from("ticket_messages").insert({
           ticket_id: ticketId,
-          artisan_id: isUuid ? threadKey : null,
-          recipient_type: isUuid ? "artisan" : (recipientTypeMap[threadKey] ?? threadKey),
+          artisan_id: isArtisanUuid ? threadKey : null,
+          recipient_type: isArtisanUuid ? "artisan" : (recipientTypeMap[threadKey] ?? threadKey),
           from_role: from === "artisan" ? "artisan" : "agency",
           content,
           subject: subject ?? null,
@@ -1016,7 +1355,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to persist ticket message", error);
       }
     })();
-  }, [simulateAI, syncTicketPatch, update]);
+  }, [settings.demo_mode, simulateAI, syncTicketPatch, update]);
 
   const addArtisan = useCallback((data: Omit<Artisan, "id">, overrideAgencyId?: string) => {
     const agencyId = overrideAgencyId ?? agencyIdRef.current; // explicit ID takes priority
@@ -1143,9 +1482,13 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     overrides?: Partial<{ title: string; category: TicketCategory; priority: TicketPriority; responsibility: Responsabilite; description: string; urgent: boolean; tenantName: string; tenantPhone: string; tenantEmail: string; propertyAddress: string; propertyUnit: string; ownerName: string; ownerPhone: string; ownerEmail: string; tenant_id: string; property_id: string; owner_id: string }>,
   ): Promise<Ticket> => {
     const ai = signalement.ai_suggestion ?? {};
-    const categorie = (overrides?.category ?? ai.category ?? "autre") as TicketCategory;
-    const priorite = (overrides?.priority ?? ai.priority ?? "normale") as TicketPriority;
-    const responsabilite = (overrides?.responsibility ?? ai.responsibility ?? "proprietaire") as Responsabilite;
+    // AI output uses English values ("plumbing" / "tenant" / …). Normalize to the local vocabulary
+    // so the UI's enum-indexed labels (categoryLabels, responsabiliteLabels) resolve correctly.
+    // Without this step, the local ticket carries raw AI values that only show up after a full
+    // refresh (when fetchHydratedTickets re-reads from DB and applies the same mapping).
+    const categorie: TicketCategory = overrides?.category ?? toTicketCategory(ai.category);
+    const priorite: TicketPriority = overrides?.priority ?? toTicketPriority(ai.priority);
+    const responsabilite: Responsabilite = overrides?.responsibility ?? toResponsabilite(ai.responsibility) ?? "proprietaire";
     const description = overrides?.description ?? ai.ai_qualified_description ?? ai.ai_summary ?? signalement.body_text;
     const titre = overrides?.title ?? ai.title ?? signalement.subject;
     const urgence = overrides?.urgent ?? ai.is_urgent ?? false;
@@ -1323,6 +1666,7 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
           uploaded_by: row.uploaded_by ?? undefined,
           uploaded_at: row.uploaded_at,
           description: row.description ?? undefined,
+          quote_id: row.quote_id ?? undefined,
         };
       }),
     );
@@ -1336,32 +1680,41 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     if (!USE_SUPABASE) return;
     const { data, error } = await supabase
       .from("ticket_messages")
-      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at")
+      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at, direction, ai_classification")
       .eq("ticket_id", ticketId)
       .order("sent_at", { ascending: true });
     if (error || !data) return;
 
+    // DB vocabulary: from_role uses 'tenant'/'owner' (canonical). Frontend vocabulary uses 'locataire'/'proprietaire'.
+    // Map both directions so older rows (if any) still render correctly.
     const recipientTypeToLocal: Record<string, string> = {
       tenant: "locataire", owner: "proprietaire", syndic: "syndic", insurance: "assurance",
     };
+    const fromRoleToLocal: Record<string, TicketMessage["from"]> = {
+      agency: "agence",
+      artisan: "artisan",
+      tenant: "locataire", locataire: "locataire",
+      owner: "proprietaire", proprietaire: "proprietaire",
+      syndic: "syndic",
+      assurance: "assurance",
+    };
     const messages = data.reduce<Record<string, TicketMessage[]>>((acc, row) => {
       const rawType = (row.recipient_type as string | null) ?? "";
+      const direction = (row.direction as string | null) ?? "outbound";
+      // Thread routing:
+      // - outbound: artisan_id (if set) or recipient_type maps to locataire/proprietaire/syndic
+      // - inbound: same logic — artisan_id is set when an artisan replies, else recipient_type carries the sender bucket
       const key = (row.artisan_id as string | null) ?? recipientTypeToLocal[rawType] ?? (rawType || "general");
+      const role = (row.from_role as string | null) ?? "";
       const msg: TicketMessage = {
         id: row.id as string,
-        from: (() => {
-          const role = row.from_role as string | null;
-          if (role === "artisan") return "artisan";
-          if (role === "locataire") return "locataire";
-          if (role === "proprietaire") return "proprietaire";
-          if (role === "syndic") return "syndic";
-          if (role === "assurance") return "assurance";
-          return "agence";
-        })(),
+        from: fromRoleToLocal[role] ?? (direction === "inbound" ? "locataire" : "agence"),
         content: (row.content as string | null) ?? "",
         subject: (row.subject as string | null) ?? undefined,
         template_id: (row.template_id as string | null) ?? undefined,
         timestamp: (row.sent_at as string | null) ?? (row.created_at as string | null) ?? new Date().toISOString(),
+        direction: (row.direction as "outbound" | "inbound" | null) ?? undefined,
+        ai_classification: (row.ai_classification as TicketMessage["ai_classification"]) ?? undefined,
       };
       acc[key] = [...(acc[key] ?? []), msg];
       return acc;
@@ -1371,6 +1724,14 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
       prev.map((t) => (t.id === ticketId ? { ...t, messages } : t)),
     );
   }, []);
+
+  // Bind the late-refs so the realtime subscription (set up earlier in the file) can invoke them.
+  useEffect(() => {
+    fetchTicketMessagesRef.current = fetchTicketMessages;
+  }, [fetchTicketMessages]);
+  useEffect(() => {
+    fetchTicketDocumentsRef.current = fetchTicketDocuments;
+  }, [fetchTicketDocuments]);
 
   const uploadTicketDocument = useCallback(async (
     ticketId: string,
@@ -1450,37 +1811,43 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     await supabase.from("ticket_documents").update(patch).eq("id", docId);
   }, []);
 
+  const refreshTicket = useCallback(async (ticketId: string) => {
+    if (!USE_SUPABASE) return;
+    // Parallel: full tickets list refresh, this ticket's messages, this ticket's documents.
+    // The tickets list refetch is the slowest but cheapest per-row; messages & docs are per-ticket.
+    await Promise.all([
+      refetchTickets().catch((error) => console.error("refreshTicket: tickets refetch failed", error)),
+      fetchTicketMessagesRef.current?.(ticketId).catch((error) => console.error("refreshTicket: messages failed", error)) ?? Promise.resolve(),
+    ]);
+  }, [refetchTickets]);
+
   const value = useMemo(() => ({
     tickets, artisans, journalEntries, showJournal, activeTicketId, loading,
     setShowJournal, setActiveTicketId,
     createTicket, updateTicket, qualifyTicket, sendArtisanContact,
-    receiveQuote, validateQuote, ownerRespond,
+    receiveQuote, selectQuote, validateQuote, ownerRespond,
     confirmPassage, advanceToFacturation, validateFacture, finalizeFacture, closeTicket,
     contactSyndic, relanceSyndic, escaladeSyndic, resolveSyndic,
     addMessage, addArtisan, updateArtisan, removeArtisan, setDisponibilites, matchAndConfirm,
     getTicket, getArtisan, validateSignalement,
     signalements, signalementsLoading, removeSignalement, refetchSignalements,
     fetchTicketDocuments, uploadTicketDocument, updateTicketDocument,
-    fetchTicketMessages,
+    fetchTicketMessages, refreshTicket,
   }), [
     tickets, artisans, journalEntries, showJournal, activeTicketId, loading,
     signalements, signalementsLoading, removeSignalement, refetchSignalements,
     createTicket, updateTicket, qualifyTicket, sendArtisanContact,
-    receiveQuote, validateQuote, ownerRespond,
+    receiveQuote, selectQuote, validateQuote, ownerRespond,
     confirmPassage, advanceToFacturation, validateFacture, finalizeFacture, closeTicket,
     contactSyndic, relanceSyndic, escaladeSyndic, resolveSyndic,
     addMessage, addArtisan, updateArtisan, removeArtisan, setDisponibilites, matchAndConfirm,
     getTicket, getArtisan, validateSignalement,
     fetchTicketDocuments, uploadTicketDocument, updateTicketDocument,
-    fetchTicketMessages,
+    fetchTicketMessages, refreshTicket,
   ]);
 
   if (USE_SUPABASE && !hydrated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        Chargement des tickets...
-      </div>
-    );
+    return <AppLoader />;
   }
 
   return (
