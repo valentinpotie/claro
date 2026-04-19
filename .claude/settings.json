@@ -33,7 +33,14 @@
       "Bash(xargs kill *)",
       "WebFetch(domain:resend.com)",
       "WebSearch",
-      "Bash(deno check *)"
+      "Bash(deno check *)",
+      "Bash(find /Users/valentinpotie/Documents/GitHub/claro -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) ! -path \"*/node_modules/*\" ! -path \"*/.claude/*\" -exec grep -l \"supabase\\\\.channel\\\\|postgres_changes\\\\|\\\\.on\\(\" {} \\\\;)",
+      "Bash(find /Users/valentinpotie/Documents/GitHub/claro/supabase/migrations -name \"*.sql\" -exec grep -l \"ticket_messages\\\\|ticket_journal\" {} \\\\;)",
+      "Bash(find /Users/valentinpotie/Documents/GitHub/claro/.claude/worktrees -name \"*.sql\" -exec grep -l \"CREATE TABLE.*tickets\\\\|create table.*tickets\" {} \\\\;)",
+      "Bash(find . -path \"*/supabase/*\" -name \"*.ts\" -exec grep -l \"ticket_messages\\\\|ticket_journal\" {} \\\\;)",
+      "Bash(node -e \"import\\('/Users/valentinpotie/Documents/GitHub/claro/src/pages/admin/AdminAgencies.tsx'\\).catch\\(e=>console.log\\(e.message\\)\\)\")",
+      "Bash(npx vite *)",
+      "Bash(kill 35171)"
     ],
     "additionalDirectories": [
       "/private/tmp"

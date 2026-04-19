@@ -8,11 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DiscussionBlock } from "@/components/DiscussionBlock";
 import { ArtisanContactModal } from "@/components/ArtisanContactModal";
 import { QuoteComparison } from "@/components/QuoteComparison";
 import { OwnerApprovalModal } from "@/components/OwnerApprovalModal";
 import { OwnerResponseConfirmModal } from "@/components/OwnerResponseConfirmModal";
+import { FacturationSendModal } from "@/components/FacturationSendModal";
 import {
   ArrowLeft, ArrowRight, Phone, Mail, MapPin, User, Home, Wrench, Calendar, Euro, CheckCircle2, Clock,
   AlertTriangle, Send, Brain, Bot, XCircle, FileText, Archive, Building2, RefreshCw, Gavel, X, Sparkles, Plus
@@ -21,11 +25,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { artisanSpecialtyLabels } from "@/components/ArtisanFormFields";
 import { TicketDocuments } from "@/components/TicketDocuments";
-import { RecipientSelector, Recipient } from "@/components/RecipientSelector";
+import { TicketReminders } from "@/components/TicketReminders";
+import { useVisibilityPoll } from "@/hooks/useVisibilityPoll";
+import { NewEventBanner } from "@/components/NewEventBanner";
+import { useTicketReadState } from "@/hooks/useTicketReadState";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { USE_SUPABASE, supabase } from "@/lib/supabase";
-import { toast as sonnerToast } from "sonner";
-import { buildTemplateVars, getAutoMessageContent, getAutoMessageSubject } from "@/lib/templateUtils";
+import { buildTemplateVars, getAutoMessageContent } from "@/lib/templateUtils";
+import { daysSince } from "@/lib/lastAction";
 
 export default function TicketDetail() {
   const { id } = useParams();
@@ -34,10 +41,25 @@ export default function TicketDetail() {
   const { settings, needsOwnerApproval, updateSettings } = useSettings();
   const { toast } = useToast();
   const ticket = ctx.getTicket(id || "");
+
+  // Refetch auto toutes les 60s tant que l'onglet est visible (réponses mail, MAJ statut).
+  // Pause automatique quand l'utilisateur bascule d'onglet — rattrape au retour.
+  useVisibilityPoll(() => { if (id) void ctx.refreshTicket(id); }, 60_000);
+
+  // État de lecture par user : alimente bannière + pastilles onglets.
+  const { latestEvents, markRead, markThreadRead, threadUnread, anyArtisanUnread } = useTicketReadState(ticket);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Reset l'état "dismissed" quand on change de ticket. On NE markRead PAS au mount :
+  // ça viderait la bannière juste avant qu'elle ne s'affiche (race avec le snapshot).
+  // Le markRead se fait au clic "J'ai vu" — la pill liste clear à ce moment.
+  useEffect(() => {
+    setBannerDismissed(false);
+  }, [ticket?.id]);
   const [ticketTourStep, setTicketTourStep] = useState(0);
   const [artisanContactPending, setArtisanContactPending] = useState<string | null>(null);
   const [discussionFocusTab, setDiscussionFocusTab] = useState<string | null>(null);
-  const [interventionDraft, setInterventionDraft] = useState<{ key: string; recipientId: string; label: string; subject: string; body: string } | null>(null);
+  const [interventionDraft, setInterventionDraft] = useState<{ recipientId: string; label: string; useCase: string; body: string } | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [factureForm, setFactureForm] = useState<{ montant: string; ref: string; prestation: string; date: string; file: File | null } | null>(null);
   const [uploadingFacture, setUploadingFacture] = useState(false);
@@ -45,6 +67,7 @@ export default function TicketDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [ownerApprovalOpen, setOwnerApprovalOpen] = useState(false);
   const [ownerResponseConfirmOpen, setOwnerResponseConfirmOpen] = useState(false);
+  const [facturationSendOpen, setFacturationSendOpen] = useState(false);
   const [showFactureRequired, setShowFactureRequired] = useState(false);
   const proofInputRef = useRef<HTMLInputElement>(null);
   const facturePdfInputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +96,11 @@ export default function TicketDetail() {
     : workflowSteps.filter(s => s.key !== "qualifie");
   const currentStepIndex = displaySteps.findIndex(s => s.key === ticket.status);
   const selectedQuote = ticket.quotes.find(q => q.id === ticket.selectedQuoteId);
-  const artisan = ticket.artisanId ? ctx.getArtisan(ticket.artisanId) : null;
+  // "The artisan of this ticket" = the one whose quote was selected. As long as nothing
+  // is selected (before selection or after a refusal clears it), the sidebar card stays
+  // empty. For internal email routing (contact artisan thread etc.), use ticket.artisanId
+  // directly via ctx.getArtisan.
+  const artisan = selectedQuote ? (ctx.getArtisan(selectedQuote.artisanId) ?? null) : null;
   const syndicStepColor = "bg-orange-500 text-white";
   const syndicCompletedColor = "bg-orange-400 text-white";
   const isHeaderFocused = ticketTourStep === 1;
@@ -225,6 +252,19 @@ export default function TicketDetail() {
         </CardContent>
       </Card>
 
+      {/* Bannière événements non lus — sous le stepper, masquée dès que l'utilisateur clique "J'ai vu". */}
+      {!bannerDismissed && latestEvents.length > 0 && (
+        <NewEventBanner
+          events={latestEvents}
+          onJumpToThread={(threadKey) => {
+            // Onglet artisan = UUID → on focus "artisans". Sinon on focus directement.
+            const focus = /^[0-9a-f]{8}-/i.test(threadKey) ? "artisans" : threadKey;
+            setDiscussionFocusTab(focus);
+          }}
+          onDismiss={() => { setBannerDismissed(true); void markRead(); }}
+        />
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-4">
@@ -342,45 +382,52 @@ export default function TicketDetail() {
                 <QuoteComparison quotes={ticket.quotes} onSelect={(quoteId) => ctx.selectQuote(ticket.id, quoteId)} />
               )}
 
-              {/* Prod: info message while waiting for quotes */}
-              {!settings.demo_mode && ticket.artisanId && ticket.quotes.length === 0 && (
-                <Card className="border-0 shadow-sm border-l-4 border-l-muted">
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <p className="text-sm text-muted-foreground">En attente du devis de l'artisan par email. Il apparaîtra automatiquement ici.</p>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Prod: info message while waiting for quotes + optional relance button when stale */}
+              {!settings.demo_mode && ticket.artisanId && ticket.quotes.length === 0 && (() => {
+                const n = daysSince(ticket.lastActionAt ?? ticket.dateCreation);
+                const stale = n != null && n >= settings.escalation_delay_artisan_days;
+                return (
+                  <Card className="border-0 shadow-sm border-l-4 border-l-muted">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <p className="text-sm text-muted-foreground">En attente du devis de l'artisan par email. Il apparaîtra automatiquement ici.</p>
+                      </div>
+                      {stale && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-muted-foreground hover:text-foreground"
+                          onClick={() => void ctx.relanceStakeholder(ticket.id, "artisan")}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Relancer l'artisan ({n} j sans réponse)
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </>
           )}
 
           {/* Réception devis */}
           {ticket.status === "reception_devis" && (() => {
-            const hasMultipleQuotes = ticket.quotes.length > 1;
             const willAutoValidate = selectedQuote ? !needsOwnerApproval(selectedQuote.montant) : false;
             return (
               <>
-                {/* Always show the comparison so the gestionnaire picks explicitly (no auto-selection
-                    on inbound quotes). Single-quote case = list of 1 with a "Choisir" button. */}
-                {ticket.quotes.length > 0 && (
-                  <QuoteComparison quotes={ticket.quotes} onSelect={(quoteId) => ctx.selectQuote(ticket.id, quoteId)} />
-                )}
-
-                {/* Nothing selected yet — prompt the user to pick a quote before validation. */}
+                {/* Selection happens on the previous step (contact_artisan). By the time we land
+                    on reception_devis, a quote is already chosen — no need to re-show the comparison
+                    or the "contact more artisans" block. To change quote/artisan, use the refusal
+                    button on the owner-approval step. */}
                 {!selectedQuote && (
                   <Card className="border-0 shadow-sm border-l-4 border-l-muted">
                     <CardContent className="p-4 flex items-center gap-3">
                       <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <p className="text-sm text-muted-foreground">
-                        {ticket.quotes.length === 0
-                          ? "En attente d'un devis. Le devis apparaîtra ici dès sa réception par email."
-                          : "Choisissez un devis ci-dessus pour passer à la validation."}
-                      </p>
+                      <p className="text-sm text-muted-foreground">Aucun devis sélectionné. Retournez à l'étape précédente pour choisir un devis.</p>
                     </CardContent>
                   </Card>
                 )}
 
-                {/* The validation card (send to owner / validate) only appears once a quote is selected. */}
                 {selectedQuote && (
                 <Card className="border-0 shadow-sm border-l-4 border-l-primary">
                   <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" /> Devis sélectionné</CardTitle></CardHeader>
@@ -438,27 +485,6 @@ export default function TicketDetail() {
                   </CardContent>
                 </Card>
                 )}
-
-                {/* Still allow contacting more artisans for additional quotes before validation (prod only). */}
-                {!settings.demo_mode && ctx.artisans.length > 0 && (
-                  <Card className="border-0 shadow-sm border-l-4 border-l-muted">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center gap-2"><Wrench className="h-4 w-4" /> Contacter un autre artisan pour comparer</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-muted-foreground mb-3">Avant de valider, vous pouvez demander un devis à d'autres artisans.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {ctx.artisans
-                          .filter(a => !ticket.quotes.some(q => q.artisanId === a.id))
-                          .map(a => (
-                            <Button key={a.id} size="sm" variant="outline" className="opacity-80" onClick={() => setArtisanContactPending(a.id)}>
-                              <Send className="h-3 w-3 mr-1" /> {a.nom}
-                            </Button>
-                          ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
               </>
             );
           })()}
@@ -475,7 +501,7 @@ export default function TicketDetail() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Accord propriétaire</CardTitle>
                 <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-                  Le devis a été envoyé à <strong className="text-foreground">{ticket.bien.proprietaire}</strong> pour approbation. Retrouvez l'échange dans l'onglet <strong className="text-foreground">Propriétaire</strong> ci-dessus. Sans réponse de sa part, une relance automatique sera envoyée tous les <strong className="text-foreground">{settings.escalation_delay_days} jour{settings.escalation_delay_days > 1 ? "s" : ""}</strong>.
+                  Le devis a été envoyé à <strong className="text-foreground">{ticket.bien.proprietaire}</strong> pour approbation. Retrouvez l'échange dans l'onglet <strong className="text-foreground">Propriétaire</strong> ci-dessus. Sans réponse sous {settings.escalation_delay_owner_days} jour{settings.escalation_delay_owner_days > 1 ? "s" : ""}, un bouton de relance apparaîtra pour le recontacter.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -545,24 +571,48 @@ export default function TicketDetail() {
                     ? "Accord propriétaire requis (règle agence)"
                     : `Au-dessus du seuil (${settings.delegation_threshold} €) — Accord propriétaire requis`}
                 </Badge>
-                {ticket.validationStatus === "en_attente" && (
+                {ticket.validationStatus === "en_attente" && !approvalDetected && !refusalDetected && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock className="h-3.5 w-3.5 animate-spin" />
                     <span>En attente de la réponse du propriétaire…</span>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <Button onClick={() => ctx.ownerRespond(ticket.id, true)} className="flex-1">
-                    <ArrowRight className="h-4 w-4 mr-2" /> Approuver
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/5"
-                    onClick={() => ctx.ownerRespond(ticket.id, false)}
-                  >
-                    <XCircle className="h-4 w-4 mr-2" /> Refuser — nouveau devis
-                  </Button>
-                </div>
+                {/* Manual fallback — shown only when the AI hasn't detected an approval or refusal
+                    in the owner thread. Covers the case where the owner validates by phone.
+                    The "Valider" button opens the same preview modal as the AI-detected flow. */}
+                {!approvalDetected && !refusalDetected && (
+                  <>
+                    <p className="text-[11px] text-muted-foreground">
+                      Le propriétaire a validé par téléphone ? Confirmez manuellement — les emails de notification seront prévisualisés avant envoi.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button onClick={() => setOwnerResponseConfirmOpen(true)} className="flex-1">
+                        <ArrowRight className="h-4 w-4 mr-2" /> Valider l'accord du propriétaire
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/5"
+                        onClick={() => ctx.ownerRespond(ticket.id, false)}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" /> Refuser — nouveau devis
+                      </Button>
+                    </div>
+                    {(() => {
+                      const n = daysSince(ticket.lastActionAt ?? ticket.dateCreation);
+                      if (n == null || n < settings.escalation_delay_owner_days) return null;
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-muted-foreground hover:text-foreground"
+                          onClick={() => void ctx.relanceStakeholder(ticket.id, "owner")}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Relancer le propriétaire ({n} j sans réponse)
+                        </Button>
+                      );
+                    })()}
+                  </>
+                )}
               </CardContent>
             </Card>
             );
@@ -571,51 +621,31 @@ export default function TicketDetail() {
           {/* Intervention — 3 blocs : date / preuves / facture */}
           {(ticket.status === "intervention" || ticket.status === "confirmation_passage") && (() => {
             const vars = buildTemplateVars(ticket, artisan ?? null, settings.agency_name);
-            const photoProofs = ticket.documents.filter(d => d.document_type === "photo");
+
+            // Preuves = photos issues d'un message classifié "proof_sent" OU uploadées
+            // manuellement (pas de ticket_message_id). On exclut explicitement les photos
+            // rattachées à un message inbound antérieur (signalement initial, reply locataire
+            // en phase de devis, etc.) pour ne pas mélanger contexte et preuve.
+            const allMessagesFlat = Object.values(ticket.messages ?? {}).flat();
+            const messagesById = new Map(allMessagesFlat.map((m) => [m.id, m]));
+            const photoProofs = ticket.documents.filter((d) => {
+              if (d.document_type !== "photo") return false;
+              if (!d.ticket_message_id) return true;  // upload manuel agence
+              const src = messagesById.get(d.ticket_message_id);
+              return src?.ai_classification?.category === "proof_sent";
+            });
             const hasFacture = !!ticket.facture;
 
-            const openDraft = (key: string, useCase: string, recipientId: string, fallbackSubject: string, fallbackBody: string, label: string) => {
+            // Ouverture du brouillon dans la modale. Le subject est ignoré côté affichage
+            // (canonical subject géré par send-ticket-email), on ne garde que le body éditable.
+            const openDraft = (_key: string, useCase: string, recipientId: string, _fallbackSubject: string, fallbackBody: string, label: string) => {
               setInterventionDraft({
-                key,
                 recipientId,
                 label,
-                subject: getAutoMessageSubject(settings.email_templates ?? [], useCase, vars, fallbackSubject),
+                useCase,
                 body: getAutoMessageContent(settings.email_templates ?? [], useCase, vars, fallbackBody),
               });
             };
-
-            const sendDraft = () => {
-              if (!interventionDraft) return;
-              ctx.addMessage(ticket.id, interventionDraft.recipientId, interventionDraft.body, "agence", interventionDraft.subject);
-              sonnerToast.success("Message envoyé");
-              setInterventionDraft(null);
-            };
-
-            const InlineDraft = () => (
-              <div className="rounded-lg border p-3 bg-muted/30 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">À : {interventionDraft!.label}</span>
-                  <button onClick={() => setInterventionDraft(null)} className="h-5 w-5 rounded flex items-center justify-center hover:bg-muted">
-                    <X className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                </div>
-                <Input
-                  value={interventionDraft!.subject}
-                  onChange={e => setInterventionDraft(d => d ? { ...d, subject: e.target.value } : d)}
-                  placeholder="Objet…"
-                  className="h-8 text-xs"
-                />
-                <textarea
-                  value={interventionDraft!.body}
-                  onChange={e => setInterventionDraft(d => d ? { ...d, body: e.target.value } : d)}
-                  rows={4}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-                <Button size="sm" onClick={sendDraft} disabled={!interventionDraft!.body.trim()} className="gap-1.5">
-                  <Send className="h-3.5 w-3.5" /> Envoyer
-                </Button>
-              </div>
-            );
 
             return (
               <>
@@ -636,23 +666,42 @@ export default function TicketDetail() {
                         placeholder="Information non communiquée"
                       />
                     </div>
-                    {interventionDraft && ["artisan_date", "locataire_date"].includes(interventionDraft.key) && <InlineDraft />}
-                    {(!interventionDraft || !["artisan_date", "locataire_date"].includes(interventionDraft.key)) && (
-                      <div className="flex gap-2 flex-wrap">
-                        <Button
-                          size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
-                          onClick={() => openDraft("artisan_date", "auto:artisan_relance_date", artisan?.id ?? "artisan", `Relance — date d'intervention ${ticket.bien.adresse}`, `Bonjour ${artisan?.nom ?? ""},\n\nNous attendons que vous preniez contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour fixer une date d'intervention au ${ticket.bien.adresse}.\n\nMerci de nous confirmer la date retenue.\n\nCordialement,\n${settings.agency_name}`, artisan?.nom ?? "Artisan")}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" /> Relancer l'artisan
-                        </Button>
-                        <Button
-                          size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
-                          onClick={() => openDraft("locataire_date", "auto:locataire_contact_artisan", "locataire", `Votre dossier — ${ticket.bien.adresse}`, `Bonjour ${ticket.locataire.nom},\n\nL'artisan chargé de votre intervention devrait vous avoir contacté pour convenir d'une date de passage. Avez-vous été contacté ?\n\nSi oui, pourriez-vous nous indiquer la date et l'heure convenues ?\n\nCordialement,\n${settings.agency_name}`, ticket.locataire.nom)}
-                        >
-                          <Mail className="h-3.5 w-3.5" /> Contacter le locataire
-                        </Button>
-                      </div>
-                    )}
+                    {(() => {
+                      // Scan inbound messages for an AI-extracted intervention_date that matches
+                      // the current planned date → surfaces the source so the gestionnaire can
+                      // trust it (or edit it if wrong).
+                      if (!ticket.dateInterventionPrevue) return null;
+                      const plannedIso = new Date(ticket.dateInterventionPrevue).toISOString().slice(0, 16);
+                      for (const threadKey of Object.keys(ticket.messages)) {
+                        for (const m of ticket.messages[threadKey] ?? []) {
+                          if (m.direction !== "inbound") continue;
+                          const extracted = (m.ai_classification?.extracted as Record<string, unknown> | undefined)?.intervention_date;
+                          if (typeof extracted !== "string") continue;
+                          if (new Date(extracted).toISOString().slice(0, 16) !== plannedIso) continue;
+                          const who = m.from === "artisan" ? "l'artisan" : m.from === "locataire" ? "le locataire" : "l'interlocuteur";
+                          return (
+                            <p className="text-[11px] text-muted-foreground italic">
+                              Date détectée automatiquement dans l'échange avec {who}.
+                            </p>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
+                        onClick={() => openDraft("artisan_date", "auto:artisan_relance_date", artisan?.id ?? "artisan", `Relance — date d'intervention ${ticket.bien.adresse}`, `Bonjour ${artisan?.nom ?? ""},\n\nNous attendons que vous preniez contact avec le locataire ${ticket.locataire.nom} (${ticket.locataire.telephone}) pour fixer une date d'intervention au ${ticket.bien.adresse}.\n\nMerci de nous confirmer la date retenue.\n\nCordialement,\n${settings.agency_name}`, artisan?.nom ?? "Artisan")}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" /> Relancer l'artisan
+                      </Button>
+                      <Button
+                        size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
+                        onClick={() => openDraft("locataire_date", "auto:locataire_contact_artisan", "locataire", `Votre dossier — ${ticket.bien.adresse}`, `Bonjour ${ticket.locataire.nom},\n\nL'artisan chargé de votre intervention devrait vous avoir contacté pour convenir d'une date de passage. Avez-vous été contacté ?\n\nSi oui, pourriez-vous nous indiquer la date et l'heure convenues ?\n\nCordialement,\n${settings.agency_name}`, ticket.locataire.nom)}
+                      >
+                        <Mail className="h-3.5 w-3.5" /> Contacter le locataire
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -674,21 +723,19 @@ export default function TicketDetail() {
                         ))}
                       </div>
                     )}
-                    {interventionDraft && ["artisan_preuve", "locataire_preuve"].includes(interventionDraft.key) && <InlineDraft />}
-                    {(!interventionDraft || !["artisan_preuve", "locataire_preuve"].includes(interventionDraft.key)) && (
-                      <div className="flex gap-2 flex-wrap">
-                        <Button
-                          size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
-                          onClick={() => openDraft("artisan_preuve", "auto:artisan_demande_preuve", artisan?.id ?? "artisan", `Preuves d'intervention — ${ticket.bien.adresse}`, `Bonjour ${artisan?.nom ?? ""},\n\nSuite à votre intervention au ${ticket.bien.adresse}, pourriez-vous nous transmettre des photos attestant de la réalisation des travaux ?\n\nCordialement,\n${settings.agency_name}`, artisan?.nom ?? "Artisan")}
-                        >
-                          <Send className="h-3.5 w-3.5" /> Demander à l'artisan
-                        </Button>
-                        <Button
-                          size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
-                          onClick={() => openDraft("locataire_preuve", "auto:locataire_preuve_passage", "locataire", `Confirmation d'intervention — ${ticket.bien.adresse}`, `Bonjour ${ticket.locataire.nom},\n\nPourriez-vous nous faire parvenir une photo confirmant que l'intervention a bien eu lieu à votre domicile ?\n\nMerci.\n\n${settings.agency_name}`, ticket.locataire.nom)}
-                        >
-                          <Send className="h-3.5 w-3.5" /> Demander au locataire
-                        </Button>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
+                        onClick={() => openDraft("artisan_preuve", "auto:artisan_demande_preuve", artisan?.id ?? "artisan", `Preuves d'intervention — ${ticket.bien.adresse}`, `Bonjour ${artisan?.nom ?? ""},\n\nSuite à votre intervention au ${ticket.bien.adresse}, pourriez-vous nous transmettre des photos attestant de la réalisation des travaux ?\n\nCordialement,\n${settings.agency_name}`, artisan?.nom ?? "Artisan")}
+                      >
+                        <Send className="h-3.5 w-3.5" /> Demander à l'artisan
+                      </Button>
+                      <Button
+                        size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
+                        onClick={() => openDraft("locataire_preuve", "auto:locataire_preuve_passage", "locataire", `Confirmation d'intervention — ${ticket.bien.adresse}`, `Bonjour ${ticket.locataire.nom},\n\nPourriez-vous nous faire parvenir une photo confirmant que l'intervention a bien eu lieu à votre domicile ?\n\nMerci.\n\n${settings.agency_name}`, ticket.locataire.nom)}
+                      >
+                        <Send className="h-3.5 w-3.5" /> Demander au locataire
+                      </Button>
                         <Button
                           size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
                           onClick={() => proofInputRef.current?.click()}
@@ -715,7 +762,6 @@ export default function TicketDetail() {
                           }}
                         />
                       </div>
-                    )}
                   </CardContent>
                 </Card>
 
@@ -834,22 +880,17 @@ export default function TicketDetail() {
                             </div>
                           </div>
                         ) : (
-                          <>
-                            {interventionDraft?.key === "artisan_facture" && <InlineDraft />}
-                            {interventionDraft?.key !== "artisan_facture" && (
-                              <div className="flex gap-2 flex-wrap">
-                                <Button
-                                  size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
-                                  onClick={() => openDraft("artisan_facture", "auto:artisan_relance_facture", artisan?.id ?? "artisan", `Facture en attente — ${ticket.bien.adresse}`, `Bonjour ${artisan?.nom ?? ""},\n\nNous n'avons pas encore reçu votre facture concernant l'intervention au ${ticket.bien.adresse}. Pourriez-vous nous la transmettre dans les meilleurs délais ?\n\nCordialement,\n${settings.agency_name}`, artisan?.nom ?? "Artisan")}
-                                >
-                                  <RefreshCw className="h-3.5 w-3.5" /> Relancer l'artisan
-                                </Button>
-                                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setFactureForm({ montant: "", ref: "", prestation: "", date: "", file: null })}>
-                                  <Plus className="h-3.5 w-3.5" /> Ajouter manuellement
-                                </Button>
-                              </div>
-                            )}
-                          </>
+                          <div className="flex gap-2 flex-wrap">
+                            <Button
+                              size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
+                              onClick={() => openDraft("artisan_facture", "auto:artisan_relance_facture", artisan?.id ?? "artisan", `Facture en attente — ${ticket.bien.adresse}`, `Bonjour ${artisan?.nom ?? ""},\n\nNous n'avons pas encore reçu votre facture concernant l'intervention au ${ticket.bien.adresse}. Pourriez-vous nous la transmettre dans les meilleurs délais ?\n\nCordialement,\n${settings.agency_name}`, artisan?.nom ?? "Artisan")}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" /> Relancer l'artisan
+                            </Button>
+                            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setFactureForm({ montant: "", ref: "", prestation: "", date: "", file: null })}>
+                              <Plus className="h-3.5 w-3.5" /> Ajouter manuellement
+                            </Button>
+                          </div>
                         )}
                       </>
                     )}
@@ -926,55 +967,9 @@ export default function TicketDetail() {
                     </Badge>
                   </div>
                 </div>
-                {(() => {
-                  const vars = buildTemplateVars(ticket, artisan ?? null, settings.agency_name);
-                  const defaultSubject = getAutoMessageSubject(
-                    settings.email_templates ?? [],
-                    "auto:proprietaire_cloture",
-                    vars,
-                    `Clôture de votre dossier — ${ticket.bien.adresse}`,
-                  );
-                  const defaultBody = getAutoMessageContent(
-                    settings.email_templates ?? [],
-                    "auto:proprietaire_cloture",
-                    vars,
-                    `Bonjour,\n\nVotre dossier concernant le bien au ${ticket.bien.adresse} est désormais clôturé.\n\nMontant facturé : ${ticket.facture?.montant} €.\n\nCordialement,\n${settings.agency_name}`,
-                  );
-                  const threadKeyForRole: Record<Recipient["role"], string | null> = {
-                    tenant: "locataire", owner: "proprietaire",
-                    artisan: ticket.artisanId ?? null, syndic: "syndic",
-                    accountant: null, custom: null,
-                  };
-                  return (
-                    <RecipientSelector
-                      ticket={ticket}
-                      artisans={ctx.artisans}
-                      accountantEmail={settings.accountant_email || undefined}
-                      defaultSubject={defaultSubject}
-                      defaultBody={defaultBody}
-                      onSend={async (recipients, subject, body) => {
-                        // Add message to each stakeholder thread that has one
-                        recipients.forEach(r => {
-                          const threadKey = threadKeyForRole[r.role];
-                          if (threadKey) ctx.addMessage(ticket.id, threadKey, body, "agence", subject);
-                        });
-                        sonnerToast.success(`Récapitulatif envoyé à ${recipients.length} destinataire${recipients.length > 1 ? "s" : ""}`);
-                        if (USE_SUPABASE && !ticket.id.startsWith("local-")) {
-                          try {
-                            const names = recipients.map(r => r.name).join(", ");
-                            await supabase.from("ticket_journal_entries").insert({
-                              ticket_id: ticket.id, type: "notification", triggered_by: "user",
-                              message: `Récapitulatif envoyé à : ${names}`,
-                              occurred_at: new Date().toISOString(),
-                            });
-                          } catch (e) { console.error("Failed to persist journal entry", e); }
-                        }
-                        // Close the ticket
-                        ctx.finalizeFacture(ticket.id);
-                      }}
-                    />
-                  );
-                })()}
+                <Button className="w-full" onClick={() => setFacturationSendOpen(true)}>
+                  <Send className="h-4 w-4 mr-2" /> Préparer l'envoi de la facture et clôturer
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -987,8 +982,19 @@ export default function TicketDetail() {
                 <p><span className="text-muted-foreground">Problème :</span> {ticket.description}</p>
                 {artisan && <p><span className="text-muted-foreground">Artisan :</span> {artisan.nom}</p>}
                 {selectedQuote && <p><span className="text-muted-foreground">Devis :</span> {selectedQuote.montant} €</p>}
-                {ticket.dateInterventionPrevue && <p><span className="text-muted-foreground">Intervention :</span> {ticket.dateInterventionPrevue}</p>}
-                {ticket.facture && <p><span className="text-muted-foreground">Facturé :</span> {ticket.facture.montant} € ({ticket.facture.payee ? "Payée" : "En attente"})</p>}
+                {ticket.dateInterventionPrevue ? (
+                  <p><span className="text-muted-foreground">Intervention :</span> {new Date(ticket.dateInterventionPrevue).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                ) : (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-muted-foreground shrink-0">Intervention :</span>
+                    <DateTimePicker
+                      value={ticket.dateInterventionPrevue}
+                      onChange={val => ctx.updateTicket(ticket.id, { dateInterventionPrevue: val })}
+                      placeholder="Date non renseignée"
+                    />
+                  </div>
+                )}
+                {ticket.facture && <p><span className="text-muted-foreground">Facture :</span> {new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(ticket.facture.montant)} € ({ticket.facture.payee ? "Envoyée" : "En attente"})</p>}
                 {ticket.responsabilite && <p><span className="text-muted-foreground">Responsabilité :</span> {responsabiliteLabels[ticket.responsabilite]}</p>}
                 {!ticket.factureValidee && (
                   <Button onClick={() => ctx.closeTicket(ticket.id)} className="mt-2">
@@ -1026,7 +1032,7 @@ export default function TicketDetail() {
               <CardContent className="space-y-3">
                 <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg text-sm">
                   <p className="font-medium">{ticket.syndic.nom}</p>
-                  <p className="text-xs text-muted-foreground mt-1">En attente de réponse depuis le {ticket.dateCreation}</p>
+                  <p className="text-xs text-muted-foreground mt-1">En attente de réponse depuis le {new Date(ticket.dateCreation).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</p>
                 </div>
                 {ticket.syndicRelances && ticket.syndicRelances.length > 0 && (
                   <div className="space-y-1.5">
@@ -1104,6 +1110,9 @@ export default function TicketDetail() {
             emailTemplates={settings.email_templates ?? []}
             focusTab={discussionFocusTab ?? (ticket.status === "validation_proprio" ? "proprietaire" : null)}
             onFocused={() => setDiscussionFocusTab(null)}
+            threadUnread={threadUnread}
+            anyArtisanUnread={anyArtisanUnread}
+            onThreadOpened={markThreadRead}
           />
 
         </div>
@@ -1154,7 +1163,18 @@ export default function TicketDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <div className="flex items-start gap-2"><MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5" /><div><p>{ticket.bien.adresse}</p><p className="text-muted-foreground">{ticket.bien.lot}</p></div></div>
+              <div className="flex items-start gap-2">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p>{ticket.bien.adresse}</p>
+                  <p className="text-muted-foreground">{ticket.bien.lot}</p>
+                  {ticket.lease_ref ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">Bail {ticket.lease_ref}</p>
+                  ) : ticket.lease_id ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">Bail lié</p>
+                  ) : null}
+                </div>
+              </div>
               <Separator />
               <div className={`space-y-2${ticket.owner_id ? " cursor-pointer" : ""}`} onClick={e => { if (ticket.owner_id) { e.stopPropagation(); navigate(`/owners/${ticket.owner_id}`); } }}>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">Propriétaire {ticket.owner_id && <ArrowRight className="h-3 w-3 text-muted-foreground" />}</p>
@@ -1176,6 +1196,8 @@ export default function TicketDetail() {
             </Card>
           )}
 
+          <TicketReminders ticket={ticket} />
+
           <TicketDocuments ticketId={ticket.id} documents={ticket.documents ?? []} />
         </div>
       </div>
@@ -1192,14 +1214,73 @@ export default function TicketDetail() {
           artisan={pendingArtisan}
           ticket={ticket}
           onClose={() => setArtisanContactPending(null)}
-          onConfirm={(subject, content) => {
-            ctx.sendArtisanContact(ticket.id, artisanContactPending, content, subject);
+          onConfirm={(payload) => {
+            ctx.sendArtisanContact(
+              ticket.id,
+              artisanContactPending,
+              payload.artisan.content,
+              payload.artisan.subject,
+              payload.tenant,
+            );
             setArtisanContactPending(null);
             setDiscussionFocusTab("artisans");
           }}
         />
       );
     })()}
+
+    {/* Intervention drafts — relance artisan/locataire depuis la page intervention.
+        Subject géré par send-ticket-email (canonical), body éditable par le gestionnaire. */}
+    {interventionDraft && (
+      <Dialog open onOpenChange={(v) => !v && setInterventionDraft(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Send className="h-4 w-4" /> Envoyer à {interventionDraft.label}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground pt-0.5">
+              Un email va être envoyé à <span className="font-medium text-foreground">{interventionDraft.label}</span>. Vérifiez et modifiez le message si besoin avant d'envoyer.
+            </p>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Message</Label>
+            <Textarea
+              value={interventionDraft.body}
+              onChange={(e) => setInterventionDraft((d) => d ? { ...d, body: e.target.value } : d)}
+              rows={8}
+              className="text-sm resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInterventionDraft(null)}>Annuler</Button>
+            <Button
+              onClick={() => {
+                ctx.addMessage(ticket.id, interventionDraft.recipientId, interventionDraft.body, "agence", undefined, interventionDraft.useCase);
+                setInterventionDraft(null);
+              }}
+              disabled={!interventionDraft.body.trim()}
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" /> Envoyer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )}
+
+    {/* Facturation send modal — per-recipient templates + shared attachments. */}
+    {facturationSendOpen && (
+      <FacturationSendModal
+        open
+        ticket={ticket}
+        artisan={artisan ?? null}
+        settings={settings}
+        onClose={() => setFacturationSendOpen(false)}
+        onConfirm={async (payload) => {
+          setFacturationSendOpen(false);
+          await ctx.sendFacturationAndClose(ticket.id, payload.items);
+        }}
+      />
+    )}
 
     {/* Owner response confirmation modal — shown when owner's reply was classified as approval. */}
     {ownerResponseConfirmOpen && (() => {

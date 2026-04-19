@@ -10,6 +10,7 @@ import type {
   TicketMessage,
   TicketPriority,
   TicketStatus,
+  SignalementAttachment,
 } from "@/data/types";
 import { supabase } from "@/lib/supabase";
 
@@ -50,6 +51,14 @@ type DbTicket = {
   reported_at: string | null;
   created_at: string | null;
   updated_at: string | null;
+  last_action_at: string | null;
+  lease_id: string | null;
+  lease_ref: string | null;
+  reminders_sent_artisan: number | null;
+  reminders_sent_owner: number | null;
+  reminders_sent_tenant: number | null;
+  reminder_paused_until: string | null;
+  requires_manual_action: boolean | null;
 };
 
 type DbQuote = {
@@ -76,6 +85,7 @@ type DbMessage = {
   created_at: string | null;
   direction: string | null;
   ai_classification: unknown;
+  attachment_document_ids: string[] | null;
 };
 
 type DbPhoto = {
@@ -98,6 +108,7 @@ type DbMailSource = {
   subject: string | null;
   body: string | null;
   received_at: string | null;
+  attachments: unknown;
 };
 
 type DbSyndicFollowup = {
@@ -146,6 +157,8 @@ type DbAgencySettings = {
   escalation_delay_artisan_days: number | null;
   escalation_delay_tenant_days: number | null;
   escalation_reminders_count: number | null;
+  auto_reminders_enabled: boolean | null;
+  test_reminders_override_seconds: number | null;
   accountant_email: string | null;
   enabled_priorities: unknown;
   onboarding_completed: boolean | null;
@@ -420,6 +433,8 @@ export function mapAgencySettings(
     escalation_delay_tenant_days: settingsRow?.escalation_delay_tenant_days ?? settingsRow?.escalation_delay_days ?? fallback.escalation_delay_tenant_days,
     escalation_reminders_count:
       settingsRow?.escalation_reminders_count ?? fallback.escalation_reminders_count,
+    auto_reminders_enabled: settingsRow?.auto_reminders_enabled ?? fallback.auto_reminders_enabled,
+    test_reminders_override_seconds: settingsRow?.test_reminders_override_seconds ?? null,
     onboarding_completed: settingsRow?.onboarding_completed ?? fallback.onboarding_completed,
     enabled_priorities: asTicketPriorities(settingsRow?.enabled_priorities ?? fallback.enabled_priorities),
     tour_completed: settingsRow?.tour_completed ?? fallback.tour_completed,
@@ -580,7 +595,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       .in("ticket_id", ticketIds),
     supabase
       .from("ticket_messages")
-      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at, direction, ai_classification")
+      .select("id, ticket_id, artisan_id, recipient_type, from_role, content, subject, template_id, sent_at, created_at, direction, ai_classification, attachment_document_ids")
       .in("ticket_id", ticketIds)
       .order("sent_at", { ascending: true }),
     supabase
@@ -595,7 +610,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       .order("created_at", { ascending: true }),
     supabase
       .from("ticket_mail_sources")
-      .select("id, ticket_id, from_email, to_email, subject, body, received_at")
+      .select("id, ticket_id, from_email, to_email, subject, body, received_at, attachments")
       .in("ticket_id", ticketIds),
     supabase
       .from("ticket_syndic_followups")
@@ -611,7 +626,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       ? supabase.from("tenants").select("id, first_name, last_name, phone, email").in("id", tenantIds)
       : Promise.resolve({ data: [], error: null }),
     ownerIds.length > 0
-      ? supabase.from("owners").select("id, first_name, last_name, phone, email").in("id", ownerIds)
+      ? supabase.from("owners").select("id, first_name, last_name, display_name, phone, email").in("id", ownerIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -624,7 +639,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
   if (invoiceRes.error) throw invoiceRes.error;
 
   type TenantRow = { id: string; first_name: string | null; last_name: string | null; phone: string | null; email: string | null };
-  type OwnerRow  = { id: string; first_name: string | null; last_name: string | null; phone: string | null; email: string | null };
+  type OwnerRow  = { id: string; first_name: string | null; last_name: string | null; display_name: string | null; phone: string | null; email: string | null };
   const tenantsById = Object.fromEntries(((tenantRes.data ?? []) as TenantRow[]).map(r => [r.id, r]));
   const ownersById  = Object.fromEntries(((ownerRes.data  ?? []) as OwnerRow[]) .map(r => [r.id, r]));
 
@@ -668,6 +683,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
         timestamp: message.sent_at ?? message.created_at ?? new Date().toISOString(),
         direction: (message.direction as "outbound" | "inbound" | null) ?? undefined,
         ai_classification: (message.ai_classification as TicketMessage["ai_classification"]) ?? undefined,
+        attachment_document_ids: (message.attachment_document_ids as string[] | null) ?? undefined,
       };
       acc[key] = acc[key] ? [...acc[key], nextMessage] : [nextMessage];
       return acc;
@@ -686,8 +702,9 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       status: toTicketStatus(ticket.status),
       priorite: toTicketPriority(ticket.priority),
       categorie: toTicketCategory(ticket.category),
-      dateCreation: (ticket.reported_at ?? ticket.created_at ?? new Date().toISOString()).slice(0, 10),
-      dateMaj: (ticket.updated_at ?? ticket.created_at ?? new Date().toISOString()).slice(0, 10),
+      dateCreation: ticket.reported_at ?? ticket.created_at ?? new Date().toISOString(),
+      dateMaj: ticket.updated_at ?? ticket.created_at ?? new Date().toISOString(),
+      lastActionAt: ticket.last_action_at ?? ticket.updated_at ?? ticket.reported_at ?? ticket.created_at ?? undefined,
       urgence: ticket.is_urgent ?? false,
       locataire: (() => {
         const t = ticket.tenant_id ? tenantsById[ticket.tenant_id] : null;
@@ -702,7 +719,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
         return {
           adresse:       ticket.property_address ?? "",
           lot:           ticket.property_unit ?? "",
-          proprietaire:  o ? `${o.first_name ?? ""} ${o.last_name ?? ""}`.trim() || (ticket.property_owner_name ?? "") : (ticket.property_owner_name ?? ""),
+          proprietaire:  o ? (o.display_name ?? (`${o.first_name ?? ""} ${o.last_name ?? ""}`.trim() || (ticket.property_owner_name ?? ""))) : (ticket.property_owner_name ?? ""),
           telephoneProprio: o?.phone ?? ticket.property_owner_phone ?? "",
           emailProprio:     o?.email ?? ticket.property_owner_email ?? "",
         };
@@ -727,6 +744,13 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
       tenant_id: ticket.tenant_id ?? undefined,
       property_id: ticket.property_id ?? undefined,
       owner_id: ticket.owner_id ?? undefined,
+      lease_id: ticket.lease_id ?? undefined,
+      lease_ref: ticket.lease_ref ?? undefined,
+      reminders_sent_artisan: ticket.reminders_sent_artisan ?? 0,
+      reminders_sent_owner: ticket.reminders_sent_owner ?? 0,
+      reminders_sent_tenant: ticket.reminders_sent_tenant ?? 0,
+      reminder_paused_until: ticket.reminder_paused_until ?? undefined,
+      requires_manual_action: ticket.requires_manual_action ?? false,
       photos: (photosByTicket[ticket.id] ?? []).map((photo) => photo.file_url ?? "").filter(Boolean),
       notes: (notesByTicket[ticket.id] ?? []).map((note) => note.content ?? "").filter(Boolean),
       validationStatus: toValidationStatus(ticket.validation_status),
@@ -737,6 +761,7 @@ export async function fetchHydratedTickets(agencyId: string | null | undefined) 
             subject: mailSource.subject ?? "",
             body: mailSource.body ?? "",
             receivedAt: mailSource.received_at ?? new Date().toISOString(),
+            attachments: Array.isArray(mailSource.attachments) ? (mailSource.attachments as SignalementAttachment[]) : null,
           }
         : undefined,
       syndic: ticket.syndic_name || ticket.syndic_email || ticket.syndic_phone
@@ -797,6 +822,7 @@ export function mapDbTicketToTicket(dbTicket: DbTicket): Ticket {
     categorie: (dbTicket.category as TicketCategory) || "autre",
     dateCreation: dbTicket.reported_at || new Date().toISOString(),
     dateMaj: dbTicket.updated_at || new Date().toISOString(),
+    lastActionAt: dbTicket.last_action_at ?? dbTicket.updated_at ?? dbTicket.reported_at ?? undefined,
     urgence: dbTicket.is_urgent || false,
     locataire: {
       nom: dbTicket.tenant_name || "",
@@ -814,6 +840,13 @@ export function mapDbTicketToTicket(dbTicket: DbTicket): Ticket {
     tenant_id: dbTicket.tenant_id || undefined,
     property_id: dbTicket.property_id || undefined,
     owner_id: dbTicket.owner_id || undefined,
+    lease_id: dbTicket.lease_id ?? undefined,
+    lease_ref: dbTicket.lease_ref ?? undefined,
+    reminders_sent_artisan: dbTicket.reminders_sent_artisan ?? 0,
+    reminders_sent_owner: dbTicket.reminders_sent_owner ?? 0,
+    reminders_sent_tenant: dbTicket.reminders_sent_tenant ?? 0,
+    reminder_paused_until: dbTicket.reminder_paused_until ?? undefined,
+    requires_manual_action: dbTicket.requires_manual_action ?? false,
     quotes: [],
     messages: {},
     photos: [],

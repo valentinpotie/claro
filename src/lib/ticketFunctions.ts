@@ -3,7 +3,7 @@
 
 import { supabase } from "@/lib/supabase";
 
-export type SendTicketEmailRecipient = "artisan" | "locataire" | "proprietaire" | "syndic";
+export type SendTicketEmailRecipient = "artisan" | "locataire" | "proprietaire" | "syndic" | "custom";
 
 export type SendTicketEmailPayload = {
   ticket_id: string;
@@ -20,6 +20,12 @@ export type SendTicketEmailPayload = {
   correlation_id?: string;
   /** `ticket_documents` UUIDs to attach to the outgoing email (downloaded from Storage by the edge function). */
   attachment_document_ids?: string[];
+  /** Requis pour recipient_type === "custom". Email libre (comptable, BCC ad-hoc). */
+  override_email?: string;
+  /** Optionnel — nom affiché. */
+  override_name?: string;
+  /** Tag de rôle (ex. "accountant") pour le debug, n'influe pas sur la logique. */
+  override_role_tag?: string;
 };
 
 export type SendTicketEmailResponse = {

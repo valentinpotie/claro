@@ -22,6 +22,7 @@ export type LogFilters = {
   level?: FunctionLogLevel;
   ticketId?: string;
   correlationId?: string;
+  agencyId?: string;
   since?: string;
   limit?: number;
 };
@@ -49,6 +50,7 @@ export function useFunctionLogs(filters: LogFilters = {}, autoRefresh = false) {
       if (filters.level) query = query.eq("level", filters.level);
       if (filters.ticketId) query = query.eq("ticket_id", filters.ticketId);
       if (filters.correlationId) query = query.eq("correlation_id", filters.correlationId);
+      if (filters.agencyId) query = query.eq("agency_id", filters.agencyId);
       if (filters.since) query = query.gte("created_at", filters.since);
 
       const { data, error: err } = await query;
@@ -59,7 +61,7 @@ export function useFunctionLogs(filters: LogFilters = {}, autoRefresh = false) {
     } finally {
       setLoading(false);
     }
-  }, [filters.functionName, filters.level, filters.ticketId, filters.correlationId, filters.since, filters.limit]);
+  }, [filters.functionName, filters.level, filters.ticketId, filters.correlationId, filters.agencyId, filters.since, filters.limit]);
 
   useEffect(() => {
     void fetchLogs();

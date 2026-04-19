@@ -53,6 +53,9 @@ export interface TicketMessage {
   direction?: "outbound" | "inbound";
   /** AI classification result (filled by classify-reply for inbound messages). */
   ai_classification?: TicketMessageClassification;
+  /** IDs des ticket_documents attachés à ce message (OUTBOUND). Pour les INBOUND
+   *  le lien se fait côté doc via ticket_documents.ticket_message_id. */
+  attachment_document_ids?: string[];
 }
 
 export interface AIJournalEntry {
@@ -81,6 +84,9 @@ export interface TicketDocument {
   /** When set, this document is attached to a specific quote. Used by the UI to show
    *  only the PDFs of the currently-selected quote instead of all devis on the ticket. */
   quote_id?: string;
+  /** When set, this document arrived via the email that produced this ticket_messages row.
+   *  Used by the Discussions view to render attachments inline inside the message bubble. */
+  ticket_message_id?: string;
 }
 
 export interface Ticket {
@@ -93,6 +99,10 @@ export interface Ticket {
   categorie: TicketCategory;
   dateCreation: string;
   dateMaj: string;
+  /** Last time the agency or a stakeholder acted on this ticket. Feeds the "Dernière action"
+   *  chip and will drive the Phase 2 auto-reminder cron. Reset on any outbound/inbound
+   *  message or manual patch. */
+  lastActionAt?: string;
   urgence: boolean;
   locataire: { nom: string; telephone: string; email: string };
   bien: { adresse: string; lot: string; proprietaire: string; telephoneProprio: string; emailProprio: string };
@@ -108,6 +118,22 @@ export interface Ticket {
   tenant_id?: string;
   property_id?: string;
   owner_id?: string;
+  /** FK vers leases — résolu à la création depuis le tenant, puis stable. NULL si aucun
+   *  bail actif n'a pu être trouvé pour ce tenant (ticket de démo, locataire non lié, etc.). */
+  lease_id?: string | null;
+  /** Snapshot texte de la référence externe du bail (ex. "BAIL000363"). Reste même si
+   *  le bail est supprimé — trace historique permanente. */
+  lease_ref?: string | null;
+  /** Phase 2 — compteurs de relances par destinataire. Incrémentés par le edge function
+   *  send-reminders (ou par l'action manuelle relanceStakeholder). */
+  reminders_sent_artisan?: number;
+  reminders_sent_owner?: number;
+  reminders_sent_tenant?: number;
+  /** Quand set, aucune relance n'est envoyée avant cette date (snooze 48h ou autre). */
+  reminder_paused_until?: string | null;
+  /** Passe à true quand le compteur atteint escalation_reminders_count : gestionnaire
+   *  doit prendre la main (changer d'artisan, appeler le proprio, etc.). */
+  requires_manual_action?: boolean;
   photos: string[];
   notes: string[];
   documents: TicketDocument[];
@@ -116,7 +142,7 @@ export interface Ticket {
   validationStatus?: "en_attente" | "approuve" | "refuse";
   source?: "email" | "manual" | "phone" | "other";
   inbound_email_id?: string;
-  mailSource?: { from: string; to: string; subject: string; body: string; receivedAt: string };
+  mailSource?: { from: string; to: string; subject: string; body: string; receivedAt: string; attachments?: SignalementAttachment[] | null };
   created_at?: string; // Added optional created_at field
   // Syndic workflow
   syndic?: { nom: string; email: string; telephone: string };
@@ -149,8 +175,57 @@ export interface Property {
   door_code?: string;
   external_ref?: string;
   syndic_id?: string;
+  /** FK vers owners — 1 propriétaire par bien. Les indivisions sont gérées via
+   *  owners.legal_type='indivision' (un seul enregistrement owner avec company_name
+   *  type "Indivision MARTIN"). Nullable : un bien peut ne pas avoir de proprio assigné. */
+  owner_id?: string | null;
+  /** Populated côté leases via nested select property:properties(*, owner:owners(*)). */
+  owner?: Owner | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export type LeaseType = "residential" | "commercial" | "parking" | "other";
+
+export const leaseTypeLabels: Record<LeaseType, string> = {
+  residential: "Habitation",
+  commercial: "Commercial",
+  parking: "Parking",
+  other: "Autre",
+};
+
+export interface Lease {
+  id: string;
+  agency_id: string;
+  property_id: string;
+  external_ref?: string | null;
+  lease_type: LeaseType;
+  start_date: string;
+  end_date?: string | null;
+  is_active: boolean;
+  rent_amount?: number | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Populated by fetchLeases via nested select. Not persisted on the row itself.
+  tenants?: LeaseTenant[];
+  property?: Property;
+}
+
+export interface LeaseTenant {
+  lease_id: string;
+  tenant_id: string;
+  is_primary: boolean;
+  exited_at?: string | null;
+  tenant?: Tenant;
+}
+
+/** Returns true only if the lease flag is_active AND the end_date hasn't passed yet
+ *  (or is not set). Matches the product rule: active = both conditions combined. */
+export function isLeaseCurrentlyActive(lease: Pick<Lease, "is_active" | "end_date">): boolean {
+  if (!lease.is_active) return false;
+  if (!lease.end_date) return true;
+  return new Date(lease.end_date) >= new Date();
 }
 
 export interface Tenant {
@@ -169,11 +244,20 @@ export interface Tenant {
   updated_at?: string;
 }
 
+export type OwnerLegalType = "person" | "sci" | "sarl" | "indivision" | "other";
+export type OwnerCivility = "M." | "Mme" | "Mlle";
+
 export interface Owner {
   id: string;
   agency_id?: string;
+  legal_type?: OwnerLegalType;
+  civility?: OwnerCivility | null;
+  company_name?: string | null;
   first_name?: string;
-  last_name: string;
+  last_name?: string | null;
+  /** Computed server-side (GENERATED ALWAYS). Safe to use for every UI rendering.
+   *  Never set from client code — the DB rewrites it from company_name or the name trio. */
+  display_name?: string;
   email?: string;
   phone?: string;
   validation_threshold?: number;
@@ -181,6 +265,21 @@ export interface Owner {
   external_ref?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export const ownerLegalTypeLabels: Record<OwnerLegalType, string> = {
+  person: "Personne physique",
+  sci: "SCI",
+  sarl: "SARL",
+  indivision: "Indivision",
+  other: "Autre",
+};
+
+export interface SignalementAttachment {
+  filename: string;
+  content_type: string | null;
+  size: number | null;
+  storage_path: string;
 }
 
 /** Pending inbound email waiting for gestionnaire validation */
@@ -196,6 +295,7 @@ export interface InboundSignalement {
   status: "processing" | "processed" | "failed";
   validation_status: "pending" | "validated" | "rejected" | "modified";
   ticket_id: string | null;
+  attachments?: SignalementAttachment[] | null;
   ai_suggestion: {
     title?: string;
     category?: string;
@@ -238,6 +338,13 @@ export interface AgencySettings {
   escalation_delay_artisan_days: number;
   escalation_delay_tenant_days: number;
   escalation_reminders_count: number;
+  /** Phase 2 — relances : si true, Claro envoie automatiquement les mails de relance
+   *  quand le délai est dépassé. Si false (défaut), le gestionnaire voit la liste des
+   *  relances dues dans le dashboard et les déclenche manuellement. */
+  auto_reminders_enabled: boolean;
+  /** Mode test : si > 0, send-reminders considère un ticket stale après ce nombre de
+   *  secondes au lieu des jours normaux. NULL = désactivé (comportement par défaut). */
+  test_reminders_override_seconds?: number | null;
   onboarding_completed: boolean;
   enabled_priorities: TicketPriority[];
   tour_completed: boolean;

@@ -30,6 +30,7 @@ interface Profile {
   agency_id: string | null;
   full_name: string;
   role: string;
+  is_super_admin?: boolean;
 }
 
 interface AuthContextType {
@@ -84,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, agency_id, full_name, role")
+        .select("id, agency_id, full_name, role, is_super_admin")
         .eq("id", authUser.id)
         .maybeSingle();
 

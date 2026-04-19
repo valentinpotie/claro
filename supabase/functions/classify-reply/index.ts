@@ -23,6 +23,35 @@ const supabase = createClient(
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+
+/** Convertit un datetime naïf exprimé en heure locale Europe/Paris (ex: "2026-04-22T14:00:00")
+ *  vers un instant UTC ISO. Gère DST automatiquement via Intl.DateTimeFormat.
+ *  Nécessaire car Claude renvoie un format sans timezone et Deno interpréterait la chaîne
+ *  comme UTC — ce qui décale de +1/+2h selon la saison au moment de l'affichage Paris. */
+function parisLocalToUTCISO(localIso: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(localIso);
+  if (!m) return null;
+  const [, yStr, moStr, dStr, hStr, miStr, sStr] = m;
+  const y = Number(yStr), mo = Number(moStr), d = Number(dStr);
+  const h = Number(hStr), mi = Number(miStr), s = Number(sStr ?? "0");
+  // Approche : on calcule l'offset Paris AU moment demandé.
+  // 1) Instant naïf traité comme UTC
+  const naiveUtcMs = Date.UTC(y, mo - 1, d, h, mi, s, 0);
+  // 2) Formatons ce naïf-UTC dans la timezone Paris — ça nous donne les composants
+  //    visibles au même instant, ce qui révèle l'offset (diff entre wall-clock Paris
+  //    et UTC).
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Paris",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(naiveUtcMs));
+  const pick = (type: string) => Number(parts.find(p => p.type === type)?.value);
+  const parisWallMs = Date.UTC(pick("year"), pick("month") - 1, pick("day"), pick("hour"), pick("minute"), pick("second"));
+  const offsetMs = parisWallMs - naiveUtcMs; // +7200000 en été, +3600000 en hiver
+  // 3) L'instant UTC correspondant au wall-clock Paris voulu est naiveUtcMs - offsetMs.
+  return new Date(naiveUtcMs - offsetMs).toISOString();
+}
 const INTERNAL_SECRET = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const STORAGE_BUCKET = "ticket-documents";
 
@@ -53,7 +82,6 @@ type Classification = {
     | "approval"   | "owner_refusal" | "question" | "info" | "unknown";
   confidence: "high" | "medium" | "low";
   summary: string;
-  clean_reply?: string;
   extracted?: Record<string, unknown>;
 };
 
@@ -102,15 +130,18 @@ function normalizeEmail(s: string | null | undefined): string {
   return (s ?? "").trim().toLowerCase();
 }
 
-// ─── Claude classification + clean_reply extraction ────────────────────────
+// ─── Claude classification (category/summary/extracted dates) ─────────────
 async function classify(
   senderRole: SenderIdentity["from_role"],
   ticketStatus: string,
   subject: string,
   cleanedBody: string,
 ): Promise<Classification | null> {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const prompt = `Tu classifies une reponse email recue dans le cadre d'un ticket de gestion locative.
 Le corps ci-dessous a deja ete pre-nettoye, mais peut encore contenir du texte cite. Tu es le dernier filet.
+
+Date du jour (pour resoudre les dates relatives) : ${todayIso}
 
 Contexte:
 - Expediteur: ${senderRole}
@@ -120,12 +151,16 @@ Contexte:
 
 Retourne UNIQUEMENT un objet JSON valide, sans markdown, sans backticks:
 {
-  "clean_reply": "le texte de la reponse uniquement, sans message cite ni signature excessive",
   "category": "acceptance"|"refusal"|"quote_sent"|"invoice_sent"|"proof_sent"|"approval"|"owner_refusal"|"question"|"info"|"unknown",
   "confidence": "high"|"medium"|"low",
   "summary": "phrase de 5-15 mots en francais",
-  "extracted": { }
+  "extracted": {
+    "intervention_date": "YYYY-MM-DDTHH:MM:00 ou null"
+  }
 }
+
+NE reformule PAS le corps du mail — il est deja nettoye en amont par email-reply-parser.
+Ton role est uniquement de CLASSIFIER et EXTRAIRE, pas de reecrire.
 
 Regles:
 - "acceptance" = l'artisan confirme qu'il peut se deplacer / faire l'intervention
@@ -138,7 +173,13 @@ Regles:
 - "question" = demande d'infos complementaires
 - "info" = message informatif
 - "unknown" = non classifiable
-- "confidence" = "high" uniquement si certain, par defaut "medium"`;
+- "confidence" = "high" uniquement si certain, par defaut "medium"
+
+Extraction "intervention_date" :
+- Renseigne UNIQUEMENT si l'email propose ou confirme explicitement UNE date concrete de passage ("lundi 22 avril a 14h", "le 25/04 matin", "demain 9h", "mardi prochain").
+- Format ISO 8601 local sans timezone (ex: "2026-04-22T14:00:00"). Si heure imprecise ("matin"), prends 09:00; ("apres-midi") 14:00; ("fin de journee") 17:00.
+- Resous les dates relatives par rapport a la date du jour donnee plus haut.
+- Retourne null si le message n'indique pas de date concrete (question ouverte, plages vagues, disponibilites generiques).`;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -157,22 +198,73 @@ Regles:
   }
 }
 
-// Priority tenant → owner → syndic → artisan: the stakeholder fields on the ticket
-// are 1-to-1 (one tenant email per ticket), while the artisan's email sits on a shared
-// row that can legitimately overlap with a stakeholder (same person, different roles,
-// or test setup with a single test mailbox). Checking stakeholders first avoids routing
+// Priority tenant → owner → syndic → artisan. Checking stakeholders first avoids routing
 // a tenant's reply to the artisan thread when the two addresses collide.
-function identifySender(
+//
+// For tenant and owner we also consult the LIVE tables (tenants, owners) in addition to
+// the ticket snapshots, so a stakeholder who changed email since the ticket was created
+// still matches. For tenants with a lease_id we also check every co-tenant listed in
+// lease_tenants — a co-locataire replying won't be routed to the invisible "general" thread.
+async function identifySender(
   fromEmail: string,
   ticket: Record<string, unknown>,
   artisan: { id: string; email: string | null } | null,
-): SenderIdentity {
+): Promise<SenderIdentity> {
   const from = normalizeEmail(fromEmail);
   if (!from) return { from_role: "unknown", thread_key: "general", artisan_id: null };
-  if (normalizeEmail(ticket.tenant_email as string | null) === from) return { from_role: "tenant", thread_key: "locataire", artisan_id: null };
-  if (normalizeEmail(ticket.property_owner_email as string | null) === from) return { from_role: "owner", thread_key: "proprietaire", artisan_id: null };
-  if (normalizeEmail(ticket.syndic_email as string | null) === from) return { from_role: "syndic", thread_key: "syndic", artisan_id: null };
-  if (artisan?.email && normalizeEmail(artisan.email) === from) return { from_role: "artisan", thread_key: artisan.id, artisan_id: artisan.id };
+
+  // 1) Tenant — snapshot first (cheap), then live row, then lease_tenants (colocation).
+  if (normalizeEmail(ticket.tenant_email as string | null) === from) {
+    return { from_role: "tenant", thread_key: "locataire", artisan_id: null };
+  }
+  if (ticket.tenant_id) {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("email")
+      .eq("id", ticket.tenant_id as string)
+      .maybeSingle();
+    if (normalizeEmail((tenant?.email as string | null) ?? null) === from) {
+      return { from_role: "tenant", thread_key: "locataire", artisan_id: null };
+    }
+  }
+  if (ticket.lease_id) {
+    const { data: coTenants } = await supabase
+      .from("lease_tenants")
+      .select("tenant:tenants(email)")
+      .eq("lease_id", ticket.lease_id as string);
+    const matched = (coTenants ?? []).some((lt: { tenant: { email: string | null } | null }) =>
+      normalizeEmail(lt.tenant?.email ?? null) === from,
+    );
+    if (matched) {
+      return { from_role: "tenant", thread_key: "locataire", artisan_id: null };
+    }
+  }
+
+  // 2) Owner — snapshot + live row.
+  if (normalizeEmail(ticket.property_owner_email as string | null) === from) {
+    return { from_role: "owner", thread_key: "proprietaire", artisan_id: null };
+  }
+  if (ticket.owner_id) {
+    const { data: owner } = await supabase
+      .from("owners")
+      .select("email")
+      .eq("id", ticket.owner_id as string)
+      .maybeSingle();
+    if (normalizeEmail((owner?.email as string | null) ?? null) === from) {
+      return { from_role: "owner", thread_key: "proprietaire", artisan_id: null };
+    }
+  }
+
+  // 3) Syndic (no dedicated table yet — snapshot only).
+  if (normalizeEmail(ticket.syndic_email as string | null) === from) {
+    return { from_role: "syndic", thread_key: "syndic", artisan_id: null };
+  }
+
+  // 4) Artisan (assigned artisan only — full directory fallback happens at call site).
+  if (artisan?.email && normalizeEmail(artisan.email) === from) {
+    return { from_role: "artisan", thread_key: artisan.id, artisan_id: artisan.id };
+  }
+
   return { from_role: "unknown", thread_key: "general", artisan_id: null };
 }
 
@@ -337,7 +429,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: ticket, error: ticketError } = await supabase
     .from("tickets")
-    .select("id, agency_id, status, reference, assigned_artisan_id, tenant_email, property_owner_email, syndic_email")
+    .select("id, agency_id, status, reference, assigned_artisan_id, tenant_id, owner_id, lease_id, tenant_email, property_owner_email, syndic_email")
     .eq("id", body.ticket_id)
     .maybeSingle();
   if (ticketError || !ticket) {
@@ -352,7 +444,7 @@ Deno.serve(async (req: Request) => {
     artisan = data;
   }
 
-  let sender = identifySender(body.from_email, ticket, artisan);
+  let sender = await identifySender(body.from_email, ticket, artisan);
 
   // Fallback: the sender doesn't match the ticket's stakeholders or the currently-assigned artisan,
   // but it could be ANOTHER artisan contacted in parallel for a quote comparison. Look up the email
@@ -380,19 +472,20 @@ Deno.serve(async (req: Request) => {
   const preCleaned = cleanReply(body.body_text ?? "");
   log.debug("pre-cleaned", { originalLength: body.body_text?.length ?? 0, cleanedLength: preCleaned.length }, { ticketId: ticket.id, agencyId: ticket.agency_id });
 
-  // Level 3: Claude classify + clean_reply
+  // Level 3: Claude — classification + extraction uniquement (plus de nettoyage corps)
   const aiStart = Date.now();
   const classification = await classify(sender.from_role, ticket.status ?? "unknown", body.subject, preCleaned);
   log.info("classify-done", {
     success: !!classification,
     category: classification?.category,
     confidence: classification?.confidence,
-    cleanReplyLength: classification?.clean_reply?.length ?? 0,
   }, { ticketId: ticket.id, agencyId: ticket.agency_id, durationMs: Date.now() - aiStart });
 
-  const finalContent = (classification?.clean_reply && classification.clean_reply.trim().length > 0)
-    ? classification.clean_reply.trim()
-    : (preCleaned.length > 0 ? preCleaned : (body.body_text ?? ""));
+  // Le contenu stocke vient de email-reply-parser (niveau 1) — preserve Bonjour /
+  // Cordialement / signatures nominales. On n'utilise PLUS Claude pour re-nettoyer
+  // le corps : il supprimait trop (formules de politesse), ce qui rendait les
+  // messages secs et robotiques en UI.
+  const finalContent = preCleaned.length > 0 ? preCleaned : (body.body_text ?? "");
 
   const recipientType = sender.from_role === "artisan" ? null
     : sender.from_role === "tenant" ? "tenant"
@@ -420,6 +513,32 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "Failed to persist inbound message" }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
   log.info("inbound-message-persisted", { ticketMessageId: msgRow.id, category: classification?.category, contentLength: finalContent.length }, { ticketId: ticket.id, agencyId: ticket.agency_id });
+
+  // Reset the ticket's staleness clock for ANY inbound, regardless of AI classification.
+  // Rationale: if Claude mis-classifies an "accord" as "question", we still don't want to
+  // relance the sender 3 days later — they DID respond. Adjustment #1 from Phase 1 spec.
+  const ticketUpdatePatch: Record<string, unknown> = { last_action_at: new Date().toISOString() };
+
+  // If Claude extracted an intervention date from an artisan or tenant message, persist it.
+  // The gestionnaire can always override via the DateTimePicker on the Intervention step.
+  // We overwrite any previous value — the latest communication wins, which matches real
+  // workflow (an artisan proposing a new slot after a first call supersedes the old one).
+  const extractedDate = (classification?.extracted as Record<string, unknown> | undefined)?.intervention_date;
+  const isPlausibleIsoDate = typeof extractedDate === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(extractedDate);
+  if (isPlausibleIsoDate && (sender.from_role === "artisan" || sender.from_role === "tenant")) {
+    // Claude renvoie l'heure en wall-clock Paris (instructions du prompt). On la convertit
+    // en UTC DST-aware avant stockage — sinon Deno l'interpréterait comme UTC et on
+    // verrait l'horaire décalé de +1/+2h à l'affichage côté frontend.
+    const utcIso = parisLocalToUTCISO(extractedDate as string);
+    if (utcIso) {
+      ticketUpdatePatch.planned_intervention_date = utcIso;
+      log.info("intervention-date-extracted", { parisLocal: extractedDate, utc: utcIso, fromRole: sender.from_role }, { ticketId: ticket.id, agencyId: ticket.agency_id });
+    } else {
+      log.warn("intervention-date-parse-failed", { raw: extractedDate }, { ticketId: ticket.id, agencyId: ticket.agency_id });
+    }
+  }
+
+  await supabase.from("tickets").update(ticketUpdatePatch).eq("id", ticket.id);
 
   // ─── Attachments handling ─────────────────────────────────────────────────
   type ProcessedAtt = { document_type: "devis" | "facture" | "photo" | "autre"; extracted: Record<string, unknown> | null; document_id: string | null };
@@ -462,6 +581,7 @@ Deno.serve(async (req: Request) => {
       const { data: docRow, error: docErr } = await supabase.from("ticket_documents").insert({
         ticket_id: ticket.id,
         agency_id: ticket.agency_id,
+        ticket_message_id: msgRow.id,
         document_type: docType,
         file_name: att.filename ?? safeName,
         file_url: signed?.signedUrl ?? "",
@@ -532,12 +652,9 @@ Deno.serve(async (req: Request) => {
         await supabase.from("ticket_documents").update({ quote_id: quoteRow.id }).eq("id", quoteAtt.document_id);
       }
 
-      // Status transitions to quote_received on first incoming quote so the gestionnaire
-      // sees the new state — but selected_quote_id stays null until a manual "Choisir" click.
-      if (ticket.status === "contractor_contacted") {
-        await supabase.from("tickets").update({ status: "quote_received", updated_at: nowIso }).eq("id", ticket.id);
-        statusTransitioned = { from: "contractor_contacted", to: "quote_received" };
-      }
+      // Status stays at "contractor_contacted" — the gestionnaire advances explicitly by
+      // picking a quote in the UI (selectQuote → reception_devis). Quotes simply accumulate
+      // on the contact_artisan step where the comparison card is displayed.
     } else {
       log.warn("quote-amount-missing", { extracted: quoteAtt.extracted }, { ticketId: ticket.id, agencyId: ticket.agency_id });
     }

@@ -16,6 +16,9 @@ const STORAGE_KEY = "claro_settings";
 
 const defaultTemplates = [
   // ── Artisan ─────────────────────────────────────────────────────────────────
+  { id: "t19", name: "Demande de devis — contact initial artisan", target: "artisan" as const, useCase: "auto:artisan_demande_devis", subject: "Demande de devis — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous avons un signalement concernant un problème de {{categorie}} au {{adresse}} ({{lot}}).\n\nDescription : {{description}}\n\nLocataire à contacter sur place :\n{{nom_locataire}} — {{telephone_locataire}}\n\nSeriez-vous disponible pour passer diagnostiquer le problème et nous transmettre un devis ?\n\nMerci d'avance pour votre retour,\n{{nom_agence}}" },
+  { id: "t20", name: "Accusé de réception — signalement locataire", target: "locataire" as const, useCase: "auto:locataire_signalement_recu", subject: "Votre signalement a bien été pris en compte — {{adresse}}", body: "Bonjour {{nom_locataire}},\n\nNous avons bien reçu votre signalement concernant le problème de {{categorie}} au {{adresse}}.\n\nNous avons contacté {{nom_artisan}} pour qu'il se déplace et établisse un devis. Vous serez tenu informé de la suite — l'artisan devrait vous contacter prochainement pour convenir d'un créneau.\n\nN'hésitez pas à nous joindre si vous avez des questions.\n\nBien cordialement,\n{{nom_agence}}" },
+  { id: "t21", name: "Relance propriétaire — accord devis", target: "proprietaire" as const, useCase: "auto:proprietaire_relance", subject: "Relance — Devis en attente d'accord {{adresse}}", body: "Bonjour {{nom_proprietaire}},\n\nSauf erreur de notre part, nous n'avons pas encore reçu votre retour concernant le devis de {{nom_artisan}} pour le bien au {{adresse}} ({{lot}}).\n\nMontant : {{montant}} €\nDescription : {{description}}\n\nPourriez-vous nous confirmer votre accord afin que nous puissions organiser l'intervention ?\n\nNous restons à votre disposition pour toute question.\n\nBien cordialement,\n{{nom_agence}}" },
   { id: "t1", name: "Demande de devis", target: "artisan" as const, useCase: "Demande de devis suite à un signalement", subject: "Demande de devis — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous avons un besoin d'intervention pour un problème de {{categorie}} au {{adresse}} ({{lot}}).\n\nDescription : {{description}}\n\nMerci de nous adresser votre devis dans les meilleurs délais.\n\nCordialement,\n{{nom_agence}}" },
   { id: "t2", name: "Confirmation intervention", target: "artisan" as const, useCase: "Confirmation de la date d'intervention", subject: "Confirmation d'intervention — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nNous confirmons votre intervention prévue le {{date_intervention}} au {{adresse}} ({{lot}}).\n\nLocataire : {{nom_locataire}} — {{telephone_locataire}}\n\nMerci.\n\n{{nom_agence}}" },
   { id: "t8", name: "Devis validé — confirmation artisan", target: "artisan" as const, useCase: "auto:artisan_devis_valide", subject: "Devis validé — {{adresse}}", body: "Bonjour {{nom_artisan}},\n\nLe devis de {{montant}} € concernant le bien au {{adresse}} a été validé. Merci de confirmer votre disponibilité pour l'intervention.\n\nLocataire : {{nom_locataire}} — {{telephone_locataire}}\n\nCordialement,\n{{nom_agence}}" },
@@ -51,6 +54,8 @@ const defaultSettings: AgencySettings = {
   escalation_delay_artisan_days: 3,
   escalation_delay_tenant_days: 3,
   escalation_reminders_count: 3,
+  auto_reminders_enabled: false,
+  test_reminders_override_seconds: null,
   onboarding_completed: false,
   enabled_priorities: ["urgente", "haute", "normale", "basse"] as TicketPriority[],
   tour_completed: false,
@@ -211,13 +216,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if ("escalation_delay_artisan_days" in data) settingsPayload.escalation_delay_artisan_days = next.escalation_delay_artisan_days;
     if ("escalation_delay_tenant_days" in data) settingsPayload.escalation_delay_tenant_days = next.escalation_delay_tenant_days;
     if ("escalation_reminders_count" in data) settingsPayload.escalation_reminders_count = next.escalation_reminders_count;
+    if ("auto_reminders_enabled" in data) settingsPayload.auto_reminders_enabled = next.auto_reminders_enabled;
+    if ("test_reminders_override_seconds" in data) settingsPayload.test_reminders_override_seconds = next.test_reminders_override_seconds;
     if ("accountant_email" in data) settingsPayload.accountant_email = next.accountant_email;
     if ("enabled_priorities" in data) settingsPayload.enabled_priorities = next.enabled_priorities;
     if ("onboarding_completed" in data) settingsPayload.onboarding_completed = next.onboarding_completed;
     if ("tour_completed" in data) settingsPayload.tour_completed = next.tour_completed;
 
     if (Object.keys(settingsPayload).length > 2) {
-      await supabase.from("agency_settings").upsert(settingsPayload, { onConflict: "id" });
+      // onConflict: agency_id plutôt que id — évite les collisions quand settingsRowId
+      // est généré à la volée (avant que bundle.settings.id soit chargé) et que la
+      // contrainte unique sur agency_id rejette silencieusement l'INSERT.
+      const { error } = await supabase.from("agency_settings").upsert(settingsPayload, { onConflict: "agency_id" });
+      if (error) console.error("[persistSettings] upsert failed", error);
     }
 
     const agencyPayload: Record<string, unknown> = {};
@@ -339,12 +350,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           escalation_delay_artisan_days: next.escalation_delay_artisan_days,
           escalation_delay_tenant_days: next.escalation_delay_tenant_days,
           escalation_reminders_count: next.escalation_reminders_count,
+          auto_reminders_enabled: next.auto_reminders_enabled,
+          test_reminders_override_seconds: next.test_reminders_override_seconds,
           accountant_email: next.accountant_email,
           enabled_priorities: next.enabled_priorities,
           onboarding_completed: true,
           tour_completed: next.tour_completed,
         },
-        { onConflict: "id" },
+        { onConflict: "agency_id" },
       );
 
       // Upsert email templates.

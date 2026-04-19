@@ -24,7 +24,7 @@ export function useSignalements(agencyId?: string) {
     try {
       const { data, error } = await supabase
         .from("inbound_emails")
-        .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion")
+        .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion, attachments")
         .eq("agency_id", agencyId)
         .is("ticket_id", null)
         .eq("validation_status", "pending")
@@ -74,7 +74,7 @@ export function useSignalements(agencyId?: string) {
           void (async () => {
             const { data } = await supabase
               .from("inbound_emails")
-              .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion")
+              .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion, attachments")
               .eq("id", id)
               .single();
             if (!data) return;
@@ -105,7 +105,7 @@ export function useSignalements(agencyId?: string) {
           void (async () => {
             const { data } = await supabase
               .from("inbound_emails")
-              .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion")
+              .select("id, agency_id, from_email, to_email, subject, body_text, body_html, received_at, status, validation_status, ticket_id, ai_suggestion, attachments")
               .eq("id", id)
               .single();
             if (!data) {

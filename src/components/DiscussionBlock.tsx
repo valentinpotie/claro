@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Ticket, Artisan, EmailTemplate, categoryLabels } from "@/data/types";
+import { Ticket, Artisan, EmailTemplate, TicketDocument, categoryLabels } from "@/data/types";
 import { useTickets } from "@/contexts/TicketContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { USE_SUPABASE } from "@/lib/supabase";
+import { USE_SUPABASE, supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,9 +69,13 @@ interface Props {
   emailTemplates: EmailTemplate[];
   focusTab?: string | null;
   onFocused?: () => void;
+  /** État "non lu" par thread — fourni par useTicketReadState côté parent. */
+  threadUnread?: (threadKey: string) => boolean;
+  anyArtisanUnread?: () => boolean;
+  onThreadOpened?: (threadKey: string) => void;
 }
 
-export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, onFocused }: Props) {
+export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, onFocused, threadUnread, anyArtisanUnread, onThreadOpened }: Props) {
   const { addMessage, fetchTicketMessages } = useTickets();
   const { settings } = useSettings();
   const navigate = useNavigate();
@@ -104,6 +108,43 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
   const [activeTab, setActiveTab]                 = useState<string>("locataire");
   const [selectedArtisanId, setSelectedArtisanId] = useState<string>(artisanIds[0] ?? "");
 
+  // Les pièces jointes du mail initial (signalement) ne vivent pas dans
+  // ticket_documents — elles sont dans ticket_mail_sources.attachments. On les
+  // résout ici en URLs signées et on les injecte comme documents virtuels
+  // rattachés au pseudo-message "mail-source-<ticketId>".
+  const mailSourceMessageId = `mail-source-${ticket.id}`;
+  const [initialAttachmentDocs, setInitialAttachmentDocs] = useState<TicketDocument[]>([]);
+  useEffect(() => {
+    const atts = ticket.mailSource?.attachments;
+    if (!atts || atts.length === 0) { setInitialAttachmentDocs([]); return; }
+    let cancelled = false;
+    void (async () => {
+      const resolved = await Promise.all(atts.map(async (a, i) => {
+        const { data } = await supabase.storage.from("ticket-documents").createSignedUrl(a.storage_path, 3600);
+        return {
+          id: `mail-source-att-${ticket.id}-${i}`,
+          ticket_id: ticket.id,
+          document_type: "signalement",
+          file_name: a.filename,
+          file_url: data?.signedUrl ?? "",
+          storage_path: a.storage_path,
+          mime_type: a.content_type ?? undefined,
+          file_size: a.size ?? undefined,
+          uploaded_at: ticket.mailSource?.receivedAt ?? new Date().toISOString(),
+          ticket_message_id: mailSourceMessageId,
+        } as TicketDocument;
+      }));
+      if (!cancelled) setInitialAttachmentDocs(resolved.filter(d => d.file_url));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.id, ticket.mailSource?.attachments]);
+
+  const mergedDocuments = useMemo(
+    () => [...(ticket.documents ?? []), ...initialAttachmentDocs],
+    [ticket.documents, initialAttachmentDocs],
+  );
+
   useEffect(() => {
     if (artisanIds.length > 0 && !artisanIds.includes(selectedArtisanId)) {
       setSelectedArtisanId(artisanIds[0]);
@@ -116,6 +157,15 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
       onFocused?.();
     }
   }, [focusTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Un onglet visible = considéré comme lu. Marque l'onglet initial + à chaque changement
+  // de ticket. Le changement d'onglet par clic est géré séparément dans Tabs.onValueChange.
+  useEffect(() => {
+    if (!onThreadOpened) return;
+    const key = activeTab === "artisans" ? selectedArtisanId : activeTab;
+    if (key) onThreadOpened(key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.id]);
 
 
   /** Return templates interpolated for this thread context */
@@ -163,18 +213,40 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
         </p>
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-2">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => {
+            setActiveTab(v);
+            // Sélectionner un onglet stakeholder = le marquer comme lu. Pour "artisans",
+            // on marque le thread de l'artisan actuellement sélectionné dans le dropdown.
+            if (!onThreadOpened) return;
+            if (v === "artisans") {
+              if (selectedArtisanId) onThreadOpened(selectedArtisanId);
+            } else {
+              onThreadOpened(v);
+            }
+          }}
+        >
           <TabsList className="h-8 mb-3 gap-1">
             {visibleTabs.map(key => {
               const label = key === "artisans" ? "Artisans" : STAKEHOLDER_LABELS[key];
+              const showDot = key === "artisans"
+                ? (anyArtisanUnread?.() ?? false)
+                : (threadUnread?.(key) ?? false);
               return (
                 <TabsTrigger
                   key={key}
                   value={key}
-                  className="text-xs gap-1"
+                  className="text-xs gap-1 relative"
                 >
                   {STAKEHOLDER_ICONS[key]}
                   {label}
+                  {showDot && (
+                    <span
+                      aria-label="Nouveau message non lu"
+                      className="ml-0.5 h-2 w-2 rounded-full bg-destructive"
+                    />
+                  )}
                 </TabsTrigger>
               );
             })}
@@ -186,7 +258,7 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
             const threadMessages = key === "locataire" && ticket.mailSource
               ? [
                   {
-                    id: `mail-source-${ticket.id}`,
+                    id: mailSourceMessageId,
                     from: "locataire" as const,
                     content: ticket.mailSource.body,
                     subject: ticket.mailSource.subject,
@@ -205,6 +277,7 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
                 senderLabel="Vous"
                 receiverLabel={STAKEHOLDER_LABELS[key]}
                 defaultSubject={lastSubject(key)}
+                documents={mergedDocuments}
               />
             </TabsContent>
             );
@@ -220,7 +293,13 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
             ) : (
               <>
                 {artisanIds.length > 1 && (
-                  <Select value={selectedArtisanId} onValueChange={setSelectedArtisanId}>
+                  <Select
+                    value={selectedArtisanId}
+                    onValueChange={(id) => {
+                      setSelectedArtisanId(id);
+                      onThreadOpened?.(id);
+                    }}
+                  >
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue placeholder="Sélectionner un artisan…" />
                     </SelectTrigger>
@@ -241,6 +320,7 @@ export function DiscussionBlock({ ticket, artisans, emailTemplates, focusTab, on
                   senderLabel="Vous"
                   receiverLabel={artisanName(selectedArtisanId)}
                   defaultSubject={lastSubject(selectedArtisanId)}
+                  documents={mergedDocuments}
                 />
               </>
             )}

@@ -16,10 +16,10 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import TicketsList from "./pages/TicketsList";
 import TicketDetail from "./pages/TicketDetail";
-import Signalement from "./pages/Signalement";
 import Artisans from "./pages/Artisans";
 import Properties from "./pages/Properties";
 import Tenants from "./pages/Tenants";
+import Leases from "./pages/Leases";
 import Owners from "./pages/Owners";
 import Validation from "./pages/Validation";
 import ConfirmationPassage from "./pages/ConfirmationPassage";
@@ -32,7 +32,12 @@ import Settings from "./pages/Settings";
 import AboutUs from "./pages/AboutUs";
 import Onboarding from "./pages/Onboarding";
 import LoaderPreview from "./pages/LoaderPreview";
-import DebugLogs from "./pages/DebugLogs";
+import AdminOverview from "./pages/admin/AdminOverview";
+import AdminReminders from "./pages/admin/AdminReminders";
+import AdminLogs from "./pages/admin/AdminLogs";
+import AdminAgencies from "./pages/admin/AdminAgencies";
+import { SuperAdminGuard } from "./components/SuperAdminGuard";
+import { AdminLayout } from "./components/AdminLayout";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -89,12 +94,12 @@ const App = () => (
                         <Route path="/dashboard" element={<OnboardingGuard><AppLayout><Dashboard /></AppLayout></OnboardingGuard>} />
                         <Route path="/tickets" element={<OnboardingGuard><AppLayout><TicketsList /></AppLayout></OnboardingGuard>} />
                         <Route path="/tickets/:id" element={<OnboardingGuard><AppLayout><TicketDetail /></AppLayout></OnboardingGuard>} />
-                        <Route path="/signalement" element={<OnboardingGuard><AppLayout><Signalement /></AppLayout></OnboardingGuard>} />
                         <Route path="/artisans" element={<OnboardingGuard><AppLayout><Artisans /></AppLayout></OnboardingGuard>} />
                         <Route path="/properties" element={<OnboardingGuard><AppLayout><Properties /></AppLayout></OnboardingGuard>} />
                         <Route path="/properties/:id" element={<OnboardingGuard><AppLayout><Properties /></AppLayout></OnboardingGuard>} />
                         <Route path="/tenants" element={<OnboardingGuard><AppLayout><Tenants /></AppLayout></OnboardingGuard>} />
                         <Route path="/tenants/:id" element={<OnboardingGuard><AppLayout><Tenants /></AppLayout></OnboardingGuard>} />
+                        <Route path="/leases" element={<OnboardingGuard><AppLayout><Leases /></AppLayout></OnboardingGuard>} />
                         <Route path="/owners" element={<OnboardingGuard><AppLayout><Owners /></AppLayout></OnboardingGuard>} />
                         <Route path="/owners/:id" element={<OnboardingGuard><AppLayout><Owners /></AppLayout></OnboardingGuard>} />
                         <Route path="/validation" element={<OnboardingGuard><AppLayout><Validation /></AppLayout></OnboardingGuard>} />
@@ -106,7 +111,11 @@ const App = () => (
                         <Route path="/guide" element={<OnboardingGuard><AppLayout><Guide /></AppLayout></OnboardingGuard>} />
                         <Route path="/settings" element={<OnboardingGuard><AppLayout><Settings /></AppLayout></OnboardingGuard>} />
                         <Route path="/about" element={<OnboardingGuard><AppLayout><AboutUs /></AppLayout></OnboardingGuard>} />
-                        <Route path="/debug/logs" element={<AppLayout><DebugLogs /></AppLayout>} />
+                        <Route path="/admin" element={<SuperAdminGuard><AdminLayout><AdminOverview /></AdminLayout></SuperAdminGuard>} />
+                        <Route path="/admin/agencies" element={<SuperAdminGuard><AdminLayout><AdminAgencies /></AdminLayout></SuperAdminGuard>} />
+                        <Route path="/admin/reminders" element={<SuperAdminGuard><AdminLayout><AdminReminders /></AdminLayout></SuperAdminGuard>} />
+                        <Route path="/admin/logs" element={<SuperAdminGuard><AdminLayout><AdminLogs /></AdminLayout></SuperAdminGuard>} />
+                        <Route path="/debug/logs" element={<Navigate to="/admin/logs" replace />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </TicketProvider>

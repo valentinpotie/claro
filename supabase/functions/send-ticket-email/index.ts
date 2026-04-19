@@ -35,7 +35,7 @@ const CORS_HEADERS = {
 };
 const JSON_HEADERS = { ...CORS_HEADERS, "Content-Type": "application/json" };
 
-type RecipientType = "artisan" | "locataire" | "proprietaire" | "syndic";
+type RecipientType = "artisan" | "locataire" | "proprietaire" | "syndic" | "custom";
 
 type RequestBody = {
   ticket_id: string;
@@ -47,6 +47,14 @@ type RequestBody = {
   correlation_id?: string;
   /** ticket_documents UUIDs to attach. Files are fetched from Storage + base64-encoded here. */
   attachment_document_ids?: string[];
+  /** Only used when recipient_type === "custom" (comptable, BCC ad-hoc).
+   *  Bypasse la résolution tenant/owner/artisan et envoie directement à cette adresse.
+   *  ticket_messages.recipient_type = "custom" et thread_key = "custom:<email>" pour ne
+   *  PAS polluer les threads tenant/owner existants. */
+  override_email?: string;
+  override_name?: string;
+  /** Libellé sémantique du rôle custom (ex. "accountant"). Sert d'info au debug. */
+  override_role_tag?: string;
 };
 
 type ResolvedRecipient = {
@@ -117,6 +125,11 @@ Deno.serve(async (req: Request) => {
   log.info("invoked", { ticketId: body.ticket_id, recipientType: body.recipient_type, templateUseCase: body.template_use_case }, { ticketId: body.ticket_id });
 
   // --- Authenticate and resolve user's agency ---
+  // Two accepted auth modes:
+  //   (a) a standard user JWT → we resolve user_agency_id() and re-check below
+  //   (b) the service role key (internal calls from send-reminders / cron) → bypass the
+  //       user-agency check. We still trust ticket.agency_id as the source of truth for
+  //       RLS-bypassed writes further down (service_role client used throughout).
   const authHeader = req.headers.get("Authorization") ?? "";
   const jwt = authHeader.replace(/^Bearer\s+/i, "");
   if (!jwt) {
@@ -125,17 +138,21 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401, headers: JSON_HEADERS });
   }
 
-  const authedClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-    { global: { headers: { Authorization: `Bearer ${jwt}` } } },
-  );
+  const isServiceRoleCall = jwt === (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+  let userAgencyId: string | null = null;
 
-  const userAgencyId = await getUserAgencyId(authedClient);
-  if (!userAgencyId) {
-    log.error("user-agency-not-resolved");
-    await log.flush();
-    return new Response(JSON.stringify({ error: "User has no agency" }), { status: 403, headers: JSON_HEADERS });
+  if (!isServiceRoleCall) {
+    const authedClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: `Bearer ${jwt}` } } },
+    );
+    userAgencyId = await getUserAgencyId(authedClient);
+    if (!userAgencyId) {
+      log.error("user-agency-not-resolved");
+      await log.flush();
+      return new Response(JSON.stringify({ error: "User has no agency" }), { status: 403, headers: JSON_HEADERS });
+    }
   }
 
   // --- Fetch the ticket (service_role, but we verify agency_id below) ---
@@ -149,7 +166,7 @@ Deno.serve(async (req: Request) => {
     await log.flush();
     return new Response(JSON.stringify({ error: "Ticket not found" }), { status: 404, headers: JSON_HEADERS });
   }
-  if (ticket.agency_id !== userAgencyId) {
+  if (!isServiceRoleCall && ticket.agency_id !== userAgencyId) {
     log.error("ticket-agency-mismatch", { ticketAgencyId: ticket.agency_id, userAgencyId }, { ticketId: body.ticket_id });
     await log.flush();
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: JSON_HEADERS });
@@ -198,19 +215,57 @@ Deno.serve(async (req: Request) => {
     artisanRow = art;
     recipient = { email: art.email, name: art.name, thread_key: art.id };
   } else if (body.recipient_type === "locataire") {
-    if (!ticket.tenant_email) {
+    // Source of truth = live tenants row. Snapshot on the ticket is ONLY a historical
+    // fallback (tenant may have changed email since the ticket was created).
+    let liveEmail: string | null = null;
+    let liveName: string | null = null;
+    if (ticket.tenant_id) {
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("email, first_name, last_name")
+        .eq("id", ticket.tenant_id)
+        .maybeSingle();
+      if (tenant?.email) {
+        liveEmail = tenant.email as string;
+        liveName = `${tenant.first_name ?? ""} ${tenant.last_name ?? ""}`.trim() || null;
+      }
+    }
+    if (!liveEmail) {
+      liveEmail = (ticket.tenant_email as string | null) ?? null;
+      liveName = (ticket.tenant_name as string | null) ?? null;
+      log.warn("tenant-email-fallback-to-snapshot", { tenantId: ticket.tenant_id ?? null }, { ticketId: body.ticket_id, agencyId: agency.id });
+    }
+    if (!liveEmail) {
       log.error("tenant-email-missing", {}, { ticketId: body.ticket_id, agencyId: agency.id });
       await log.flush();
       return new Response(JSON.stringify({ error: "Tenant has no email" }), { status: 400, headers: JSON_HEADERS });
     }
-    recipient = { email: ticket.tenant_email, name: ticket.tenant_name ?? null, thread_key: "locataire" };
+    recipient = { email: liveEmail, name: liveName, thread_key: "locataire" };
   } else if (body.recipient_type === "proprietaire") {
-    if (!ticket.property_owner_email) {
+    let liveEmail: string | null = null;
+    let liveName: string | null = null;
+    if (ticket.owner_id) {
+      const { data: owner } = await supabase
+        .from("owners")
+        .select("email, display_name")
+        .eq("id", ticket.owner_id)
+        .maybeSingle();
+      if (owner?.email) {
+        liveEmail = owner.email as string;
+        liveName = (owner.display_name as string | null) ?? null;
+      }
+    }
+    if (!liveEmail) {
+      liveEmail = (ticket.property_owner_email as string | null) ?? null;
+      liveName = (ticket.property_owner_name as string | null) ?? null;
+      log.warn("owner-email-fallback-to-snapshot", { ownerId: ticket.owner_id ?? null }, { ticketId: body.ticket_id, agencyId: agency.id });
+    }
+    if (!liveEmail) {
       log.error("owner-email-missing", {}, { ticketId: body.ticket_id, agencyId: agency.id });
       await log.flush();
       return new Response(JSON.stringify({ error: "Owner has no email" }), { status: 400, headers: JSON_HEADERS });
     }
-    recipient = { email: ticket.property_owner_email, name: ticket.property_owner_name ?? null, thread_key: "proprietaire" };
+    recipient = { email: liveEmail, name: liveName, thread_key: "proprietaire" };
   } else if (body.recipient_type === "syndic") {
     if (!ticket.syndic_email) {
       log.error("syndic-email-missing", {}, { ticketId: body.ticket_id, agencyId: agency.id });
@@ -218,6 +273,17 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "Syndic has no email" }), { status: 400, headers: JSON_HEADERS });
     }
     recipient = { email: ticket.syndic_email, name: ticket.syndic_name ?? null, thread_key: "syndic" };
+  } else if (body.recipient_type === "custom") {
+    const overrideEmail = (body.override_email ?? "").trim();
+    if (!overrideEmail || !overrideEmail.includes("@")) {
+      log.error("custom-email-invalid", { overrideEmail: overrideEmail || null }, { ticketId: body.ticket_id, agencyId: agency.id });
+      await log.flush();
+      return new Response(JSON.stringify({ error: "override_email is required and must be a valid email for recipient_type=custom" }), { status: 400, headers: JSON_HEADERS });
+    }
+    // thread_key = "custom:<email>" pour isoler du thread locataire/proprio — aucun
+    // risque d'agréger les mails comptable à la conversation tenant dans Gmail.
+    recipient = { email: overrideEmail, name: body.override_name ?? null, thread_key: `custom:${overrideEmail.toLowerCase()}` };
+    log.debug("custom-recipient", { email: overrideEmail, roleTag: body.override_role_tag ?? null }, { ticketId: body.ticket_id, agencyId: agency.id });
   }
 
   if (!recipient) {
@@ -226,25 +292,68 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "Invalid recipient_type" }), { status: 400, headers: JSON_HEADERS });
   }
 
-  // --- Fetch template (optional override) ---
+  // --- Fetch template (optional override for content only) ---
+  // NOTE: we deliberately ignore template.subject and body.fallback_subject. The subject
+  // is computed below in a single canonical way across the whole ticket so that all
+  // emails to a given recipient thread in the same conversation in their inbox.
   let content = body.fallback_content;
-  let subject = body.fallback_subject;
   let templateRowId: string | null = null;  // UUID of the email_templates row, for ticket_messages.template_id (uuid)
   if (body.template_use_case) {
     const { data: template } = await supabase
       .from("email_templates")
-      .select("id, subject, body")
+      .select("id, body")
       .eq("agency_id", agency.id)
       .eq("use_case", body.template_use_case)
       .eq("is_active", true)
       .maybeSingle();
     if (template) {
       content = template.body ?? content;
-      subject = template.subject ?? subject;
       templateRowId = (template.id as string | null) ?? null;
       log.debug("template-used", { useCase: body.template_use_case, templateId: templateRowId }, { ticketId: body.ticket_id, agencyId: agency.id });
     } else {
       log.debug("template-not-found-using-fallback", { useCase: body.template_use_case }, { ticketId: body.ticket_id, agencyId: agency.id });
+    }
+  }
+
+  // --- Canonical ticket subject ---
+  // Every email for a given ticket must share the SAME subject so that recipient
+  // inboxes group the conversation as one thread. Strategy:
+  //   1. If any prior outbound exists for this ticket, reuse its subject verbatim
+  //      (stripped of the [CLR-XX] prefix, which we re-add below).
+  //   2. Else, prefer the ticket title (AI-generated during signalement qualification,
+  //      e.g. "Fuite d'eau sous évier cuisine"), combined with the address.
+  //   3. Fallback: "{CategoryLabel} — {address}" (only used when title is empty —
+  //      typically tickets created manually without qualification).
+  const CATEGORY_LABELS: Record<string, string> = {
+    plomberie: "Plomberie",
+    electricite: "Électricité",
+    serrurerie: "Serrurerie",
+    chauffage: "Chauffage",
+    toiture: "Toiture",
+    humidite: "Humidité",
+    nuisibles: "Nuisibles",
+    autre: "Intervention",
+  };
+  const { data: firstOutboundSubj } = await supabase
+    .from("ticket_messages")
+    .select("subject")
+    .eq("ticket_id", ticket.id)
+    .eq("direction", "outbound")
+    .not("subject", "is", null)
+    .order("sent_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  let subject: string;
+  if (firstOutboundSubj?.subject) {
+    subject = (firstOutboundSubj.subject as string).replace(new RegExp(`^\\[${ticket.reference}\\]\\s*`, "i"), "").trim();
+  } else {
+    const title = (ticket.title as string | null)?.trim() ?? "";
+    const addr = (ticket.property_address as string) ?? "";
+    if (title) {
+      subject = addr ? `${title} — ${addr}` : title;
+    } else {
+      const categoryLabel = CATEGORY_LABELS[(ticket.category as string) ?? ""] ?? "Intervention";
+      subject = addr ? `${categoryLabel} — ${addr}` : categoryLabel;
     }
   }
 
@@ -302,6 +411,33 @@ Deno.serve(async (req: Request) => {
   log.debug("threading-computed", { isFirstOutbound, priorOutboundCount, thisMessageId }, { ticketId: ticket.id, agencyId: agency.id });
 
   // --- Build attachments from ticket_documents (optional) ---
+  // Devine l'extension depuis le mime_type quand le nom de fichier n'en a pas.
+  // Sans extension, Gmail/Mac Mail affichent un fichier "générique" sans preview et
+  // le destinataire peut avoir des frictions pour l'ouvrir. Certaines pièces jointes
+  // arrivent de Resend avec filename: null → nous stockons alors un nom comme "Devis"
+  // sans extension. On rectifie au moment de l'envoi.
+  const EXT_FROM_MIME: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/plain": "txt",
+    "text/csv": "csv",
+  };
+  const ensureExtension = (filename: string, mime: string | null): string => {
+    if (/\.[a-zA-Z0-9]{2,5}$/.test(filename)) return filename;  // déjà une extension
+    const ext = mime ? EXT_FROM_MIME[mime.toLowerCase()] : undefined;
+    return ext ? `${filename}.${ext}` : filename;
+  };
+
   const attachments: Array<{ filename: string; content: string }> = [];
   if (body.attachment_document_ids && body.attachment_document_ids.length > 0) {
     const { data: docs } = await supabase
@@ -318,8 +454,10 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         const buf = new Uint8Array(await blob.arrayBuffer());
-        attachments.push({ filename: doc.file_name ?? `document-${doc.id}`, content: encodeBase64(buf) });
-        log.debug("attachment-added", { documentId: doc.id, filename: doc.file_name, sizeBytes: buf.byteLength }, { ticketId: ticket.id, agencyId: agency.id });
+        const baseName = doc.file_name ?? `document-${doc.id}`;
+        const filename = ensureExtension(baseName, doc.mime_type as string | null);
+        attachments.push({ filename, content: encodeBase64(buf) });
+        log.debug("attachment-added", { documentId: doc.id, filename, originalName: doc.file_name, mime: doc.mime_type, sizeBytes: buf.byteLength }, { ticketId: ticket.id, agencyId: agency.id });
       } catch (e) {
         log.warn("attachment-exception", { documentId: doc.id, error: e instanceof Error ? e.message : String(e) }, { ticketId: ticket.id, agencyId: agency.id });
       }
@@ -367,7 +505,12 @@ Deno.serve(async (req: Request) => {
     .insert({
       ticket_id: ticket.id,
       artisan_id: body.recipient_type === "artisan" ? recipient.thread_key : null,
-      recipient_type: body.recipient_type === "artisan" ? null : body.recipient_type === "locataire" ? "tenant" : body.recipient_type === "proprietaire" ? "owner" : body.recipient_type,
+      recipient_type:
+        body.recipient_type === "artisan" ? null :
+        body.recipient_type === "locataire" ? "tenant" :
+        body.recipient_type === "proprietaire" ? "owner" :
+        body.recipient_type === "custom" ? "custom" :
+        body.recipient_type,
       from_role: "agency",
       content: interpolatedContent,
       subject: taggedSubject,
@@ -375,6 +518,9 @@ Deno.serve(async (req: Request) => {
       direction: "outbound",
       resend_message_id: resendMessageId,
       sent_at: new Date().toISOString(),
+      attachment_document_ids: body.attachment_document_ids && body.attachment_document_ids.length > 0
+        ? body.attachment_document_ids
+        : null,
     })
     .select("id")
     .single();
@@ -385,6 +531,10 @@ Deno.serve(async (req: Request) => {
   } else {
     log.info("ticket-message-persisted", { ticketMessageId: msgRow.id }, { ticketId: body.ticket_id, agencyId: agency.id });
   }
+
+  // Agency acted on this ticket → reset the staleness clock. Used by the UI chip
+  // "Dernière action : il y a Nj" and by the Phase 2 auto-reminder cron.
+  await supabase.from("tickets").update({ last_action_at: new Date().toISOString() }).eq("id", ticket.id);
 
   log.info("done", { resendMessageId }, { ticketId: body.ticket_id, agencyId: agency.id, durationMs: log.elapsedMs() });
   await log.flush();

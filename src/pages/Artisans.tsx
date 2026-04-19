@@ -171,8 +171,14 @@ export default function Artisans() {
         artisan={contactPending.artisan}
         ticket={contactPending.ticket}
         onClose={() => setContactPending(null)}
-        onConfirm={(subject, content) => {
-          sendArtisanContact(contactPending.ticket.id, contactPending.artisan.id, content, subject);
+        onConfirm={(payload) => {
+          sendArtisanContact(
+            contactPending.ticket.id,
+            contactPending.artisan.id,
+            payload.artisan.content,
+            payload.artisan.subject,
+            payload.tenant,
+          );
           setContactPending(null);
           navigate(`/tickets/${contactPending.ticket.id}`);
         }}

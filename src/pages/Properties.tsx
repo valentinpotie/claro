@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useProperties } from "@/hooks/useProperties";
+import { useOwners } from "@/hooks/useOwners";
 import { useTickets } from "@/contexts/TicketContext";
 import type { Property } from "@/data/types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,13 +11,17 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { CsvImportDialog } from "@/components/CsvImportDialog";
 import { TicketMiniList, TicketCountBadge } from "@/components/TicketMiniList";
-import { Search, Plus, MoreHorizontal, Pencil, Trash2, Home, Upload } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Pencil, Trash2, Home, Upload, Check, ChevronsUpDown, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
+import { ownerDisplayName } from "@/lib/displayName";
+import { cn } from "@/lib/utils";
 
 const emptyProperty: Omit<Property, "id"> = {
-  address: "", city: "", postal_code: "", unit_number: "", floor: "", building_name: "", door_code: "", external_ref: "",
+  address: "", city: "", postal_code: "", unit_number: "", floor: "", building_name: "", door_code: "", external_ref: "", owner_id: null,
 };
 
 const csvColumns = ["address", "city", "postal_code", "unit_number", "floor", "building_name", "door_code", "external_ref"];
@@ -24,6 +29,7 @@ const csvColumns = ["address", "city", "postal_code", "unit_number", "floor", "b
 export default function Properties() {
   const { settings } = useSettings();
   const { properties, addProperty, updateProperty, removeProperty, bulkInsert } = useProperties(settings.agency_id);
+  const { owners } = useOwners(settings.agency_id);
   const { tickets } = useTickets();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -32,6 +38,9 @@ export default function Properties() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [ownerPickerOpen, setOwnerPickerOpen] = useState(false);
+
+  const selectedOwner = owners.find((o) => o.id === form.owner_id) ?? null;
 
   const ticketsForProperty = (p: Property) =>
     tickets.filter(t => t.bien.adresse.toLowerCase().includes(p.address.toLowerCase()));
@@ -43,7 +52,17 @@ export default function Properties() {
   const openAdd = () => { setEditingId(null); setForm(emptyProperty); setShowForm(true); };
   const openEdit = (p: Property) => {
     setEditingId(p.id);
-    setForm({ address: p.address, city: p.city ?? "", postal_code: p.postal_code ?? "", unit_number: p.unit_number ?? "", floor: p.floor ?? "", building_name: p.building_name ?? "", door_code: p.door_code ?? "", external_ref: p.external_ref ?? "" });
+    setForm({
+      address: p.address,
+      city: p.city ?? "",
+      postal_code: p.postal_code ?? "",
+      unit_number: p.unit_number ?? "",
+      floor: p.floor ?? "",
+      building_name: p.building_name ?? "",
+      door_code: p.door_code ?? "",
+      external_ref: p.external_ref ?? "",
+      owner_id: p.owner_id ?? null,
+    });
     setShowForm(true);
   };
 
@@ -84,7 +103,8 @@ export default function Properties() {
     return bulkInsert(cleaned);
   };
 
-  const set = (key: keyof Omit<Property, "id">, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  const set = <K extends keyof Omit<Property, "id">>(key: K, value: Property[K]) =>
+    setForm(prev => ({ ...prev, [key]: value }));
 
   return (
     <div className="space-y-6">
@@ -111,10 +131,9 @@ export default function Properties() {
               <TableRow>
                 <TableHead>Adresse</TableHead>
                 <TableHead>Ville</TableHead>
-                <TableHead>CP</TableHead>
                 <TableHead>Lot</TableHead>
-                <TableHead>Étage</TableHead>
                 <TableHead>Bâtiment</TableHead>
+                <TableHead>Propriétaire</TableHead>
                 <TableHead>Tickets</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
@@ -132,10 +151,14 @@ export default function Properties() {
                     >
                       <TableCell className="font-medium">{p.address}</TableCell>
                       <TableCell>{p.city}</TableCell>
-                      <TableCell>{p.postal_code}</TableCell>
                       <TableCell>{p.unit_number}</TableCell>
-                      <TableCell>{p.floor}</TableCell>
                       <TableCell>{p.building_name}</TableCell>
+                      <TableCell className="text-xs">
+                        {(() => {
+                          const own = owners.find(o => o.id === p.owner_id);
+                          return own ? ownerDisplayName(own) : <span className="italic text-muted-foreground">—</span>;
+                        })()}
+                      </TableCell>
                       <TableCell><TicketCountBadge count={pTickets.length} /></TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -151,7 +174,7 @@ export default function Properties() {
                     </TableRow>
                     {isExpanded && (
                       <TableRow key={`${p.id}-tickets`}>
-                        <TableCell colSpan={8} className="bg-muted/20 px-4 py-3">
+                        <TableCell colSpan={7} className="bg-muted/20 px-4 py-3">
                           <TicketMiniList tickets={pTickets} emptyLabel="Aucun ticket pour ce bien" />
                         </TableCell>
                       </TableRow>
@@ -177,6 +200,46 @@ export default function Properties() {
             <div className="space-y-1"><Label>Bâtiment</Label><Input value={form.building_name ?? ""} onChange={e => set("building_name", e.target.value)} placeholder="Résidence Les Lilas" /></div>
             <div className="space-y-1"><Label>Code porte</Label><Input value={form.door_code ?? ""} onChange={e => set("door_code", e.target.value)} placeholder="A1234" /></div>
             <div className="space-y-1"><Label>Réf. externe</Label><Input value={form.external_ref ?? ""} onChange={e => set("external_ref", e.target.value)} placeholder="P-001" /></div>
+
+            <div className="col-span-2 space-y-1">
+              <Label>Propriétaire</Label>
+              <Popover open={ownerPickerOpen} onOpenChange={setOwnerPickerOpen}>
+                <PopoverTrigger asChild>
+                  <button type="button" className="w-full h-9 flex items-center gap-1.5 border rounded-md px-3 text-sm hover:bg-muted/50 transition-colors">
+                    <span className={cn("flex-1 truncate text-left", selectedOwner ? "text-foreground" : "italic text-muted-foreground")}>
+                      {selectedOwner ? ownerDisplayName(selectedOwner) : "Aucun propriétaire assigné"}
+                    </span>
+                    {selectedOwner && (
+                      <XIcon
+                        className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); set("owner_id", null); }}
+                      />
+                    )}
+                    <ChevronsUpDown className="h-3 w-3 opacity-40 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-96" align="start">
+                  <Command>
+                    <CommandInput placeholder="Rechercher un propriétaire…" />
+                    <CommandList>
+                      <CommandEmpty>Aucun propriétaire</CommandEmpty>
+                      <CommandGroup>
+                        {owners.map(o => {
+                          const name = ownerDisplayName(o);
+                          return (
+                            <CommandItem key={o.id} value={name} onSelect={() => { set("owner_id", o.id); setOwnerPickerOpen(false); }}>
+                              <Check className={cn("mr-2 h-3.5 w-3.5", form.owner_id === o.id ? "opacity-100" : "opacity-0")} />
+                              <span className="truncate flex-1">{name}</span>
+                              {o.email && <span className="ml-2 text-[10px] text-muted-foreground truncate">{o.email}</span>}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowForm(false); setEditingId(null); }}>Annuler</Button>

@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/contexts/TicketContext";
+import { useVisibilityPoll } from "@/hooks/useVisibilityPoll";
 import { useSettings } from "@/contexts/SettingsContext";
 import { TicketCategory, TicketPriority, categoryLabels, responsabiliteLabels, Responsabilite, InboundSignalement } from "@/data/types";
+import { SignalementAttachments } from "@/components/SignalementAttachments";
+import { daysSince } from "@/lib/lastAction";
+import { ownerDisplayName } from "@/lib/displayName";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,13 +20,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Mail, Brain, Sparkles, FileText, Inbox, Copy, ArrowRight, Send, RefreshCcw, CheckCircle2, Check, ChevronsUpDown, User, Home, Building2, ExternalLink, Trash2 } from "lucide-react";
+import { Mail, Brain, Sparkles, FileText, Inbox, Copy, ArrowRight, Send, RefreshCcw, CheckCircle2, Check, ChevronsUpDown, User, Home, Building2, ExternalLink, Trash2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { USE_SUPABASE } from "@/lib/supabase";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useTenants } from "@/hooks/useTenants";
 import { useProperties } from "@/hooks/useProperties";
 import { useOwners } from "@/hooks/useOwners";
+import { useLeases } from "@/hooks/useLeases";
+import { resolveLeasePrimaryTenant } from "@/lib/displayName";
 
 // Mock signalements for demo mode (USE_SUPABASE=false)
 const mockSignalements: InboundSignalement[] = [
@@ -109,13 +115,18 @@ const mockSignalements: InboundSignalement[] = [
 ];
 
 export default function Dashboard() {
-  const { tickets, createTicket, validateSignalement: ctxValidateSignalement, signalements: remoteSignalements, removeSignalement, refetchSignalements } = useTickets();
+  const { tickets, createTicket, validateSignalement: ctxValidateSignalement, signalements: remoteSignalements, removeSignalement, refetchSignalements, refetchTickets } = useTickets();
   const { settings } = useSettings();
   const navigate = useNavigate();
+
+  // Polling doux : refetch toutes les 60s tant que l'onglet est visible. Attrape les
+  // nouveaux signalements arrivés par email sans forcer un reload manuel.
+  useVisibilityPoll(() => Promise.all([refetchTickets(), refetchSignalements()]).then(() => undefined), 60_000);
 
   const { tenants } = useTenants(settings.agency_id);
   const { properties } = useProperties(settings.agency_id);
   const { owners } = useOwners(settings.agency_id);
+  const { leases } = useLeases(settings.agency_id);
 
   const [mockSignalementsState, setMockSignalementsState] = useState<InboundSignalement[]>(
     USE_SUPABASE ? [] : mockSignalements,
@@ -189,7 +200,7 @@ export default function Dashboard() {
     owner_id: "", ownerName: "", ownerPhone: "", ownerEmail: "",
   });
   const [cardSelections, setCardSelections] = useState<Record<string, CardSel>>({});
-  const [openCombobox, setOpenCombobox] = useState<Record<string, "tenant" | "property" | "owner" | null>>({});
+  const [openCombobox, setOpenCombobox] = useState<Record<string, "lease" | "tenant" | "property" | "owner" | null>>({});
 
   const claroEmail = settings.email_inbound?.trim() || "Adresse de reception non configuree";
 
@@ -364,7 +375,7 @@ export default function Dashboard() {
           proprietaire: sel?.ownerName || getOwnerName(s),
           telephoneProprio: sel?.ownerPhone || getOwnerPhone(s),
           emailProprio: sel?.ownerEmail || getOwnerEmail(s),
-          mailSource: { from: s.from_email, to: s.to_email, subject: s.subject, body: getOriginalMailBody(s), receivedAt: s.received_at },
+          mailSource: { from: s.from_email, to: s.to_email, subject: s.subject, body: getOriginalMailBody(s), receivedAt: s.received_at, attachments: s.attachments ?? null },
           tenant_id: sel?.tenant_id || undefined,
           property_id: sel?.property_id || undefined,
           owner_id: sel?.owner_id || undefined,
@@ -432,7 +443,7 @@ export default function Dashboard() {
           locataireNom: correctionForm.locataireNom, locataireTel: correctionForm.locataireTel, locataireEmail: correctionForm.locataireEmail,
           adresse: correctionForm.adresse, lot: correctionForm.lot,
           proprietaire: correctionForm.proprietaire, telephoneProprio: correctionForm.telephoneProprio, emailProprio: correctionForm.emailProprio,
-          mailSource: { from: correcting.from_email, to: correcting.to_email, subject: correcting.subject, body: getOriginalMailBody(correcting), receivedAt: correcting.received_at },
+          mailSource: { from: correcting.from_email, to: correcting.to_email, subject: correcting.subject, body: getOriginalMailBody(correcting), receivedAt: correcting.received_at, attachments: correcting.attachments ?? null },
           tenant_id: correctionForm.tenant_id || undefined,
           property_id: correctionForm.property_id || undefined,
           owner_id: correctionForm.owner_id || undefined,
@@ -447,6 +458,14 @@ export default function Dashboard() {
   const ouverts = tickets.filter(t => t.status !== "cloture").length;
 
   const urgents = tickets.filter(t => t.urgence && t.status !== "cloture").length;
+  // Urgent tickets with no activity for 24h+: the gestionnaire should phone the stakeholder
+  // directly — urgent flows don't wait for email round-trips.
+  const urgentsAApeller = tickets.filter(t => {
+    if (!t.urgence) return false;
+    if (t.status === "cloture") return false;
+    const n = daysSince(t.lastActionAt ?? t.dateCreation);
+    return n != null && n >= 1;
+  });
   const interventions = tickets.filter(t => t.status === "intervention").length;
   const clotures = tickets.filter(t => t.status === "cloture").length;
   const highlightSignalements = tourHighlight;
@@ -487,6 +506,51 @@ export default function Dashboard() {
               <span className={`text-4xl font-bold font-display leading-none tabular-nums ${color}`}>{value}</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Urgent tickets without response for 24h+ → agent must phone. Urgence ne doit pas
+          attendre un aller-retour email automatique (adjustment #2 du plan Phase 1).
+          Masqué pour l'instant à la demande produit — on réactive quand le volume le justifie. */}
+      {false && urgentsAApeller.length > 0 && (
+        <div className="rounded-[4px] border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <div className="flex items-start gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-destructive">
+                À appeler — {urgentsAApeller.length} ticket{urgentsAApeller.length > 1 ? "s" : ""} urgent{urgentsAApeller.length > 1 ? "s" : ""} sans réponse
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Les incidents urgents ne doivent pas attendre un email de relance. Contactez directement par téléphone.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {urgentsAApeller.slice(0, 5).map(t => {
+              const n = daysSince(t.lastActionAt ?? t.dateCreation) ?? 0;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => navigate(`/tickets/${t.id}`)}
+                  className="w-full text-left flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-destructive/10 transition-colors"
+                >
+                  <span className="font-mono text-destructive shrink-0">{t.reference}</span>
+                  <span className="truncate flex-1">{t.titre}</span>
+                  <span className="text-muted-foreground shrink-0">
+                    {n === 0 ? "< 24 h" : n === 1 ? "1 jour" : `${n} jours`}
+                  </span>
+                </button>
+              );
+            })}
+            {urgentsAApeller.length > 5 && (
+              <button
+                onClick={() => navigate("/tickets?filter=urgent")}
+                className="text-xs text-muted-foreground hover:text-foreground pl-2"
+              >
+                Voir les {urgentsAApeller.length - 5} autres →
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -583,15 +647,95 @@ export default function Dashboard() {
                     {/* Sélection locataire / bien / propriétaire */}
                     {(() => {
                       const sel = cardSelections[s.id] ?? emptySel();
-                      const setOpen = (type: "tenant" | "property" | "owner" | null) =>
+                      const setOpen = (type: "lease" | "tenant" | "property" | "owner" | null) =>
                         setOpenCombobox(p => ({ ...p, [s.id]: type }));
                       const setSel = (patch: Partial<CardSel>) =>
                         setCardSelections(p => ({ ...p, [s.id]: { ...(p[s.id] ?? emptySel()), ...patch } }));
 
                       const fieldCls = "flex items-center gap-0.5 hover:text-foreground transition-colors cursor-pointer";
 
+                      // Quand on choisit un bail : on pré-remplit tenant + bien + propriétaire
+                      // (via property.owner_id). Migration 017 a ajouté la FK properties.owner_id.
+                      const applyLease = (leaseId: string) => {
+                        const lease = leases.find(l => l.id === leaseId);
+                        if (!lease) return;
+                        const primary = resolveLeasePrimaryTenant(lease)?.tenant;
+                        const prop = lease.property;
+                        const own = prop?.owner;
+                        const patch: Partial<CardSel> = {};
+                        if (primary) {
+                          const name = `${primary.first_name ?? ""} ${primary.last_name ?? ""}`.trim();
+                          patch.tenant_id = primary.id;
+                          patch.tenantName = name;
+                          patch.tenantPhone = primary.phone ?? "";
+                          patch.tenantEmail = primary.email ?? "";
+                        }
+                        if (prop) {
+                          patch.property_id = prop.id;
+                          patch.propertyAddress = prop.address + (prop.city ? `, ${prop.city}` : "");
+                          patch.propertyUnit = prop.unit_number ?? "";
+                        }
+                        if (own) {
+                          patch.owner_id = own.id;
+                          patch.ownerName = ownerDisplayName(own);
+                          patch.ownerPhone = own.phone ?? "";
+                          patch.ownerEmail = own.email ?? "";
+                        }
+                        setSel(patch);
+                      };
+
+                      const selectedLease = leases.find(l =>
+                        l.property_id === sel.property_id &&
+                        (resolveLeasePrimaryTenant(l)?.tenant?.id === sel.tenant_id || l.tenants?.some(t => t.tenant_id === sel.tenant_id)),
+                      );
+
                       return (
-                        <div className="mt-2 pt-2 border-t border-dashed">
+                        <div className="mt-2 pt-2 border-t border-dashed space-y-1.5">
+                          {/* Raccourci : sélectionner un bail pré-remplit tenant + bien (propriétaire toujours à renseigner à part) */}
+                          {leases.length > 0 && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <Popover open={openCombobox[s.id] === "lease"} onOpenChange={open => setOpen(open ? "lease" : null)}>
+                                <PopoverTrigger asChild>
+                                  <button className="flex items-center gap-1 px-2 py-1 rounded border border-dashed border-border/60 hover:bg-muted/40 transition-colors">
+                                    <FileText className="h-3 w-3 text-muted-foreground" />
+                                    <span className="opacity-60">Bail :</span>
+                                    <span className={cn("ml-0.5", selectedLease ? "text-foreground" : "italic opacity-50")}>
+                                      {selectedLease
+                                        ? (selectedLease.external_ref ?? `${selectedLease.property?.address ?? ""}`.slice(0, 40))
+                                        : "lier à un bail existant"}
+                                    </span>
+                                    <ChevronsUpDown className="h-2.5 w-2.5 ml-0.5 opacity-40 shrink-0" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="p-0 w-96" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Rechercher un bail (référence, adresse, locataire)…" />
+                                    <CommandList>
+                                      <CommandEmpty>Aucun bail trouvé</CommandEmpty>
+                                      <CommandGroup>
+                                        {leases.map(l => {
+                                          const primary = resolveLeasePrimaryTenant(l)?.tenant;
+                                          const primaryName = primary ? `${primary.first_name ?? ""} ${primary.last_name ?? ""}`.trim() : "Sans locataire";
+                                          const addr = l.property ? `${l.property.address}${l.property.unit_number ? ` · ${l.property.unit_number}` : ""}` : "";
+                                          const searchValue = `${l.external_ref ?? ""} ${addr} ${primaryName}`;
+                                          return (
+                                            <CommandItem key={l.id} value={searchValue} onSelect={() => { applyLease(l.id); setOpen(null); }}>
+                                              <Check className={cn("mr-2 h-3.5 w-3.5", selectedLease?.id === l.id ? "opacity-100" : "opacity-0")} />
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-mono text-muted-foreground">{l.external_ref ?? "Bail sans réf"}</p>
+                                                <p className="text-xs truncate">{addr} — {primaryName}</p>
+                                              </div>
+                                            </CommandItem>
+                                          );
+                                        })}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          )}
+
                           <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
                             {/* Locataire */}
                             <Popover open={openCombobox[s.id] === "tenant"} onOpenChange={open => setOpen(open ? "tenant" : null)}>
@@ -693,7 +837,7 @@ export default function Dashboard() {
                                     <CommandEmpty>Aucun propriétaire trouvé</CommandEmpty>
                                     <CommandGroup>
                                       {owners.map(o => {
-                                        const name = `${o.first_name ?? ""} ${o.last_name}`.trim();
+                                        const name = ownerDisplayName(o);
                                         return (
                                           <CommandItem key={o.id} value={name} onSelect={() => {
                                             setSel({ owner_id: o.id, ownerName: name, ownerPhone: o.phone ?? "", ownerEmail: o.email ?? "" });
@@ -719,6 +863,10 @@ export default function Dashboard() {
                         </div>
                       );
                     })()}
+
+                    {s.attachments && s.attachments.length > 0 && (
+                      <SignalementAttachments attachments={s.attachments} />
+                    )}
 
                     <p className="text-xs text-muted-foreground mt-2">
                       <span className="opacity-60">Reçu le :</span> {new Date(s.received_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -888,13 +1036,13 @@ export default function Dashboard() {
                     }
                     const o = owners.find(o => o.id === v);
                     if (o) {
-                      setCorrectionForm(prev => ({ ...prev, owner_id: v, proprietaire: `${o.first_name ?? ""} ${o.last_name}`.trim(), telephoneProprio: o.phone ?? prev.telephoneProprio, emailProprio: o.email ?? prev.emailProprio }));
+                      setCorrectionForm(prev => ({ ...prev, owner_id: v, proprietaire: ownerDisplayName(o), telephoneProprio: o.phone ?? prev.telephoneProprio, emailProprio: o.email ?? prev.emailProprio }));
                     }
                   }}>
                     <SelectTrigger><SelectValue placeholder="Sélectionner un propriétaire…" /></SelectTrigger>
                     <SelectContent>
                       {owners.length === 0 && <SelectItem value="__go-owners">Aucun propriétaire - Ouvrir la page Propriétaires</SelectItem>}
-                      {owners.map(o => <SelectItem key={o.id} value={o.id}>{o.first_name} {o.last_name}</SelectItem>)}
+                      {owners.map(o => <SelectItem key={o.id} value={o.id}>{ownerDisplayName(o)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home, Inbox, Copy, CheckCircle2, Building2, FlaskConical, Zap } from "lucide-react";
+import { Settings as SettingsIcon, Euro, Shield, Mail, Wrench, User, Home, Inbox, Copy, CheckCircle2, Building2, FlaskConical, Zap, Lock } from "lucide-react";
 import { EscalationDelaySettings } from "@/components/EscalationDelaySettings";
 
 const templateVariables = ["{{nom_agence}}", "{{adresse}}", "{{lot}}", "{{categorie}}", "{{description}}", "{{nom_artisan}}", "{{telephone_artisan}}", "{{nom_locataire}}", "{{telephone_locataire}}", "{{nom_proprietaire}}", "{{montant}}", "{{date_intervention}}"];
@@ -75,33 +75,35 @@ export default function Settings() {
         <p className="text-sm text-muted-foreground">Configuration des règles de gestion de l'agence</p>
       </div>
 
-      {/* Mode démo / production */}
-      <Card className={`border-0 shadow-sm ${settings.demo_mode ? "ring-1 ring-amber-300 dark:ring-amber-700" : "ring-1 ring-emerald-300 dark:ring-emerald-700"}`}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            {settings.demo_mode ? <FlaskConical className="h-4 w-4 text-amber-600" /> : <Zap className="h-4 w-4 text-emerald-600" />}
-            Mode {settings.demo_mode ? "démo" : "production"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 text-xs text-muted-foreground space-y-1">
-              {settings.demo_mode ? (
-                <>
-                  <p className="text-foreground font-medium">Actions simulées — aucun email réel envoyé.</p>
-                  <p>Les étapes du ticket (contact artisan, relances, accord propriétaire…) alimentent uniquement le Journal Claro pour la démo. Parfait pour présenter le produit sans risquer d'envoyer un mail à un vrai artisan.</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-foreground font-medium">Actions réelles — les emails seront envoyés aux destinataires.</p>
-                  <p>Chaque clic qui déclenche un email (contact artisan, accord propriétaire…) appelle les edge functions qui envoient un vrai mail via Resend. Les réponses sont routées vers les tickets et apparaissent dans le thread Discussion.</p>
-                </>
-              )}
+      {/* Mode du compte — information seule, géré par l'équipe Claro */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4 flex items-start gap-3">
+          {settings.demo_mode ? (
+            <div className="h-10 w-10 rounded-[4px] bg-amber-100 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
+              <FlaskConical className="h-5 w-5 text-amber-700 dark:text-amber-300" />
             </div>
-            <Switch
-              checked={!settings.demo_mode}
-              onCheckedChange={(checked) => updateSettings({ demo_mode: !checked })}
-            />
+          ) : (
+            <div className="h-10 w-10 rounded-[4px] bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
+              <Zap className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-medium">
+                Votre compte est en mode {settings.demo_mode ? "démo" : "production"}
+              </p>
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Lock className="h-3 w-3" /> géré par Claro
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {settings.demo_mode
+                ? "Les actions sont simulées — aucun email réel n'est envoyé."
+                : "Les emails sont envoyés aux destinataires réels."}
+              {" "}
+              Pour changer ce mode, contactez l'équipe Claro à{" "}
+              <a href="mailto:v_potie@hetic.eu" className="text-primary hover:underline">v_potie@hetic.eu</a>.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -145,8 +147,23 @@ export default function Settings() {
           {/* Section 2 — Relances automatiques */}
           <div className="space-y-4">
             <div>
-              <p className="text-sm font-semibold">Relances automatiques</p>
+              <p className="text-sm font-semibold">Relances</p>
             </div>
+
+            <div className="flex items-center justify-between rounded-md border border-input px-3 py-2.5">
+              <div className="pr-4">
+                <p className="text-sm font-medium">Envoi automatique des relances</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Si activé, Claro envoie les mails de relance dès qu'un ticket dépasse le délai configuré ci-dessous.
+                  Sinon, les relances dues apparaissent sur votre dashboard et vous les envoyez manuellement.
+                </p>
+              </div>
+              <Switch
+                checked={settings.auto_reminders_enabled}
+                onCheckedChange={(v) => updateSettings({ auto_reminders_enabled: v })}
+              />
+            </div>
+
             <EscalationDelaySettings settings={settings} onChange={updateSettings} />
           </div>
         </CardContent>
@@ -221,6 +238,10 @@ export default function Settings() {
           {settings.accountant_email && <p className="text-muted-foreground">Comptable : <strong>{settings.accountant_email}</strong></p>}
         </CardContent>
       </Card>
+
+      <div className="pt-2 flex items-center justify-center gap-4 text-xs text-muted-foreground">
+        <a href="/about" className="hover:text-foreground transition-colors">Qui sommes-nous ?</a>
+      </div>
     </div>
   );
 }

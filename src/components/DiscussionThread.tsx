@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { TicketMessage, EmailTemplate } from "@/data/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { TicketMessage, EmailTemplate, TicketDocument } from "@/data/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Send, Settings } from "lucide-react";
+import { ChevronDown, Send, Settings, Paperclip } from "lucide-react";
 
 interface Props {
   messages: TicketMessage[];
@@ -20,6 +20,9 @@ interface Props {
   senderLabel?: string;
   receiverLabel?: string;
   defaultSubject?: string;
+  /** All ticket documents. Documents with ticket_message_id set are rendered inline as
+   *  clickable links inside the corresponding message bubble. */
+  documents?: TicketDocument[];
 }
 
 function fmt(ts: string) {
@@ -36,7 +39,32 @@ export function DiscussionThread({
   senderLabel = "Vous",
   receiverLabel = "Interlocuteur",
   defaultSubject = "",
+  documents = [],
 }: Props) {
+  // INBOUND : doc lié à son mail d'origine via ticket_documents.ticket_message_id.
+  // OUTBOUND : on lit msg.attachment_document_ids (array posé par send-ticket-email).
+  const docsById = useMemo(() => new Map(documents.map((d) => [d.id, d])), [documents]);
+  const attachmentsByMessage = useMemo(() => {
+    const map = new Map<string, TicketDocument[]>();
+    for (const doc of documents) {
+      if (!doc.ticket_message_id) continue;
+      const bucket = map.get(doc.ticket_message_id) ?? [];
+      bucket.push(doc);
+      map.set(doc.ticket_message_id, bucket);
+    }
+    for (const msg of messages) {
+      const ids = msg.attachment_document_ids;
+      if (!ids || ids.length === 0) continue;
+      const resolved = ids.map((id) => docsById.get(id)).filter((d): d is TicketDocument => !!d);
+      if (resolved.length === 0) continue;
+      const existing = map.get(msg.id) ?? [];
+      // Dédupe au cas où un doc serait inscrit des deux côtés.
+      const seen = new Set(existing.map((d) => d.id));
+      for (const d of resolved) if (!seen.has(d.id)) existing.push(d);
+      map.set(msg.id, existing);
+    }
+    return map;
+  }, [documents, messages, docsById]);
   const [body, setBody]                     = useState("");
   const [subject, setSubject]               = useState(defaultSubject);
   const [activeTemplate, setActiveTemplate] = useState<string | undefined>();
@@ -118,6 +146,26 @@ export function DiscussionThread({
                     </p>
                   )}
                   <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  {(() => {
+                    const attachments = attachmentsByMessage.get(msg.id);
+                    if (!attachments || attachments.length === 0) return null;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
+                        {attachments.map((doc) => (
+                          <a
+                            key={doc.id}
+                            href={doc.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-primary hover:underline break-all"
+                          >
+                            <Paperclip className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{doc.file_name}</span>
+                          </a>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );

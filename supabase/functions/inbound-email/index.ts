@@ -100,6 +100,85 @@ async function getAttachments(emailId: string): Promise<unknown[]> {
   }
 }
 
+type ResendAtt = {
+  id?: string;
+  filename?: string;
+  content_type?: string;
+  size?: number;
+  content?: string;
+  download_url?: string;
+};
+
+async function fetchAttachmentBytes(att: ResendAtt, emailId: string): Promise<Uint8Array | null> {
+  // Prefer inline base64 if present; fall back to download_url; fall back to Resend API.
+  try {
+    if (typeof att.content === "string" && att.content.length > 0) {
+      const bin = atob(att.content);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+    if (typeof att.download_url === "string") {
+      const r = await fetch(att.download_url, { headers: { Authorization: `Bearer ${RESEND_API_KEY}` } });
+      if (r.ok) return new Uint8Array(await r.arrayBuffer());
+    }
+    if (typeof att.id === "string") {
+      const url = `https://api.resend.com/emails/receiving/${emailId}/attachments/${att.id}`;
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${RESEND_API_KEY}` } });
+      if (r.ok) {
+        const ct = (r.headers.get("content-type") ?? "").toLowerCase();
+        if (ct.includes("application/json")) {
+          const j = await r.json();
+          const b64 = j?.content ?? j?.data?.content;
+          if (typeof b64 === "string") {
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return bytes;
+          }
+        } else {
+          return new Uint8Array(await r.arrayBuffer());
+        }
+      }
+    }
+  } catch {
+    // fall through to null
+  }
+  return null;
+}
+
+/**
+ * Persist signalement attachments to Storage so the dashboard can render thumbnails
+ * via signed URLs. Replaces the raw Resend download_url (which requires the API key)
+ * with a storage_path accessible to the agency via RLS.
+ */
+async function persistSignalementAttachments(
+  inboundId: string,
+  emailId: string,
+  rawAttachments: unknown[],
+): Promise<Array<{ filename: string; content_type: string | null; size: number | null; storage_path: string }>> {
+  const out: Array<{ filename: string; content_type: string | null; size: number | null; storage_path: string }> = [];
+  for (let i = 0; i < rawAttachments.length; i++) {
+    const att = rawAttachments[i] as ResendAtt;
+    const bytes = await fetchAttachmentBytes(att, emailId);
+    if (!bytes) continue;
+    const safeName = (att.filename ?? `piece-${i + 1}.bin`).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storagePath = `inbound-${inboundId}/${safeName}`;
+    const { error: uploadErr } = await supabase.storage.from("ticket-documents").upload(storagePath, bytes, {
+      contentType: att.content_type ?? "application/octet-stream",
+      upsert: true,
+    });
+    if (uploadErr) continue;
+    out.push({
+      filename: att.filename ?? safeName,
+      content_type: att.content_type ?? null,
+      size: typeof att.size === "number" ? att.size : bytes.byteLength,
+      storage_path: storagePath,
+    });
+  }
+  return out;
+}
+
 async function qualify(from_email: string, from_name: string, subject: string, body: string): Promise<Record<string, unknown> | null> {
   const prompt = `Tu es un agent de qualification d'incidents locatifs francais. Tu recois un email d'un locataire signalant un probleme dans son logement.
 
@@ -287,6 +366,21 @@ Deno.serve(async (req: Request) => {
   if (ie || !inbound) { log.error("inbound-insert-failed", { error: ie?.message }, { agencyId: agency.id }); await log.flush(); return new Response("ok", { status: 200 }); }
 
   log.info("signalement-created", { inboundId: inbound.id }, { agencyId: agency.id });
+
+  // Download & persist attachments to Storage so the dashboard signalement card can render
+  // thumbnails/links via signed URLs. Replaces the raw Resend download_url (which requires
+  // an API key) with a storage_path accessible via RLS.
+  if (attachments.length > 0) {
+    try {
+      const persisted = await persistSignalementAttachments(inbound.id as string, emailId, attachments);
+      if (persisted.length > 0) {
+        await supabase.from("inbound_emails").update({ attachments: persisted }).eq("id", inbound.id);
+        log.info("signalement-attachments-stored", { count: persisted.length }, { agencyId: agency.id });
+      }
+    } catch (err) {
+      log.warn("signalement-attachments-failed", { error: err instanceof Error ? err.message : String(err) }, { agencyId: agency.id });
+    }
+  }
 
   const textForAi = bodyText.trim() !== "" ? bodyText : bodyHtml;
   const aiStart = Date.now();
